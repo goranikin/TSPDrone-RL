@@ -50,6 +50,6 @@ class AttentionModel(nn.Module):
 
     def embed(self, static):
         # encoder
-        embeddings, _ = self.embedder(self._init_embed(static))
+        embeddings, _ = self.embedder(self.init_embed(static))
         #   fixed = self._precompute(embeddings)
         return embeddings

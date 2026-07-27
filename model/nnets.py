@@ -119,7 +119,7 @@ class Attention(nn.Module):
         u = torch.bmm(v, torch.tanh(e + q + d_ex)).squeeze(1)
 
         if self.use_tahn:
-            logits = self.C * self.tanh(u)
+            logits = self.C * torch.tanh(u)
         else:
             logits = u
         # e : [b_s, hidden_dim, n_nodes]
@@ -279,7 +279,7 @@ class AttentionCritic(nn.Module):
 
         u = torch.bmm(v, torch.tanh(e + q + d_ex)).squeeze(1)
         if self.use_tahn:
-            logits = self.C * self.tanh(u)
+            logits = self.C * torch.tanh(u)
         else:
             logits = u
         # e : [b_s, hidden_dim, n_nodes]
@@ -322,7 +322,7 @@ class Critic(nn.Module):
         # x, y coords
         static_hidden = self.static_encoder(static)
 
-        batch_size, _, n_nodes = static_hidden.size()
+        batch_size, _, _ = static_hidden.size()
 
         dynamic_hidden = self.dynamic_d_ex(d_ex.permute(0, 2, 1))
 
