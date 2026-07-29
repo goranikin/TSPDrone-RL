@@ -2,9 +2,9 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 import torch
+from src.types import ProblemState, SupervisedTarget
 
 from src.constants import ObjectiveSense, ProblemName, SupervisionKind
-from src.types import ProblemState, SupervisedTarget
 
 
 class Problem(ABC):
@@ -129,7 +129,7 @@ class Problem(ABC):
     def require_tensor(batch: dict[str, Any], key: str) -> torch.Tensor:
         value = batch.get(key)
         if not isinstance(value, torch.Tensor):
-            raise ValueError(f"Missing tensor batch[{key!r}]")
+            raise TypeError(f"Missing tensor batch[{key!r}], got {type(value)}")
         return value
 
     @staticmethod

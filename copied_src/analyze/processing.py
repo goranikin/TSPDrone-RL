@@ -5,7 +5,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-
 from src.analyze.metadata import DECODERS, PROBLEMS, objective_sign
 from src.analyze.records import ExportBundle, ProcessedData
 

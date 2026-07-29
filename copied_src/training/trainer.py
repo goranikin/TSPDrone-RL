@@ -5,13 +5,13 @@ from typing import Any
 
 import torch
 from pydantic import BaseModel, ConfigDict, Field
+from src.models.model import NCOModel
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from src.config import BaselineKind, NonNegativeInt, PositiveFloat, PositiveInt
 from src.constants import TrainingDataPolicy, TrainingMode
-from src.models.model import NCOModel
 from src.training.baselines import ExponentialRewardBaseline, RolloutRewardBaseline
 from src.training.metrics import (
     EvaluationMetrics,

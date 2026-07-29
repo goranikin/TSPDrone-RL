@@ -5,11 +5,10 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
-from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
-
+from matplotlib.colors import ListedColormap
+from matplotlib.lines import Line2D
 from src.analyze.metadata import EXPECTED_DECODERS, EXPECTED_PROBLEMS, objective_sign
 
 DECODER_LABELS = {

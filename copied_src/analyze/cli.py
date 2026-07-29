@@ -11,6 +11,7 @@ from src.analyze.metadata import (
     EXPECTED_PROBLEMS,
 )
 from src.analyze.pipeline import AnalysisConfig, run_analysis
+
 from src.paths import DOCS_ROOT, WANDB_ANALYSIS_ROOT, resolve_user_path
 
 DEFAULT_ENTITY = "goranikin-my-project"

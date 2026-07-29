@@ -2,7 +2,6 @@ from typing import Any
 
 import torch
 from pydantic import BaseModel, ConfigDict
-
 from src.problems.base import Problem
 from src.types import SolutionOutput
 

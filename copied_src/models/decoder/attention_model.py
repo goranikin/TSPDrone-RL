@@ -1,13 +1,13 @@
 import math
 
 import torch
-from torch import nn
-
-from src.constants import DecodeType
 from src.models.decoder.base import AutoregressiveDecoder
 from src.models.decoding import action_embeddings, append_stop_embedding
 from src.models.initialization import initialize_kool_linear, kool_uniform_
 from src.types import EncoderOutput, ProblemDecodeState, SolutionOutput
+from torch import nn
+
+from src.constants import DecodeType
 
 
 class AttentionModelDecoder(AutoregressiveDecoder):

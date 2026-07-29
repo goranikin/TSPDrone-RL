@@ -1,7 +1,6 @@
 from typing import Any
 
 import torch
-
 from src.problems.base import Problem
 from src.types import ProblemState, SupervisedTarget
 

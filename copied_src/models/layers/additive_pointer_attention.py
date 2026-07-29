@@ -1,7 +1,6 @@
 import torch
-from torch import nn
-
 from src.models.decoding import append_stop_embedding
+from torch import nn
 
 
 class AdditivePointerAttention(nn.Module):

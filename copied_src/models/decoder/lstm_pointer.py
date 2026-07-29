@@ -1,12 +1,12 @@
 import torch
-from torch import nn
-
-from src.constants import DecodeType
 from src.models.decoder.base import AutoregressiveDecoder
 from src.models.decoding import action_embeddings
 from src.models.initialization import initialize_pointer_network
 from src.models.layers.additive_pointer_attention import AdditivePointerAttention
 from src.types import EncoderOutput, ProblemDecodeState, SolutionOutput
+from torch import nn
+
+from src.constants import DecodeType
 
 
 class LSTMPointerDecoder(AutoregressiveDecoder):

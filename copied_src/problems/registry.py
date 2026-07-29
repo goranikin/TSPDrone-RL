@@ -1,8 +1,9 @@
-from src.constants import ProblemName
 from src.problems.base import Problem
 from src.problems.graph import GraphSubsetProblem, MaxCliqueProblem, VertexCoverProblem
 from src.problems.routing import CVRPProblem, TSPProblem
 from src.problems.subset import KnapsackProblem, OrienteeringProblem
+
+from src.constants import ProblemName
 
 
 def make_problem(name: ProblemName) -> Problem:

@@ -1,7 +1,6 @@
 from typing import Any
 
 import torch
-
 from src.problems.base import Problem
 from src.types import ProblemState, SupervisedTarget
 
@@ -277,7 +276,7 @@ class VertexCoverProblem(GraphSubsetProblem):
     def _effective_adjacency(batch: dict[str, Any]) -> torch.Tensor:
         adjacency = batch["adjacency"]
         if not isinstance(adjacency, torch.Tensor):
-            raise ValueError("Missing tensor batch['adjacency']")
+            raise TypeError(f"Missing tensor batch['adjacency'], got {type(adjacency)}")
         adjacency = adjacency.bool()
         valid = valid_node_mask(batch)
         if valid is not None:

@@ -14,3 +14,9 @@ dependencies = [
     "tqdm>=4.70.0",
     "wandb>=0.28.1",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.0",
+    "ty>=0.0.64",
+]

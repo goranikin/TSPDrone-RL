@@ -1,13 +1,13 @@
 import math
 
 import torch
-from torch import nn
-
-from src.constants import DecodeType
 from src.models.decoder.base import AutoregressiveDecoder
 from src.models.decoding import action_embeddings, append_stop_embedding
 from src.models.layers.causal_transformer_layer import CausalTransformerLayerCell
 from src.types import EncoderOutput, ProblemDecodeState, SolutionOutput
+from torch import nn
+
+from src.constants import DecodeType
 
 
 class TransformerPointerDecoder(AutoregressiveDecoder):

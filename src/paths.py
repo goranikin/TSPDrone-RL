@@ -12,16 +12,8 @@ def resolve_user_path(path: str | Path) -> Path:
     return Path(path).expanduser()
 
 
-def resolve_data_root(value: str | Path | None = None) -> Path:
-    return LOCAL_DB_ROOT if value is None else resolve_user_path(value)
-
-
-def experiment_log_path(
-    filename: str,
-    *,
-    data_root: str | Path | None = None,
-) -> Path:
-    return resolve_data_root(data_root) / "log" / filename
+def experiment_log_path(filename: str, *, data_root: str | Path) -> Path:
+    return resolve_user_path(data_root) / "log" / filename
 
 
 def checkpoint_dir(output_dir: str | Path, n_nodes: int) -> Path:

@@ -35,14 +35,12 @@ class MultiHeadAttention(nn.Module):
         self.embed_dim = embed_dim
         self.val_dim = val_dim
         self.key_dim = key_dim
-
         self.norm_factor = 1 / math.sqrt(key_dim)
 
         self.W_query = nn.Parameter(torch.Tensor(n_heads, input_dim, key_dim))
         self.W_key = nn.Parameter(torch.Tensor(n_heads, input_dim, key_dim))
         self.W_val = nn.Parameter(torch.Tensor(n_heads, input_dim, val_dim))
         self.W_out = nn.Parameter(torch.Tensor(n_heads, val_dim, embed_dim))
-
         self.init_parameters()
 
     def init_parameters(self) -> None:
@@ -76,38 +74,31 @@ class MultiHeadAttention(nn.Module):
         V = torch.matmul(hflat, self.W_val).view(shp)
 
         compatibility = self.norm_factor * torch.matmul(Q, K.transpose(2, 3))
-
         if mask is not None:
             mask = mask.view(1, batch_size, n_query, graph_size).expand_as(compatibility)
             compatibility[mask] = -np.inf
 
         attn = torch.softmax(compatibility, dim=-1)
-
         if mask is not None:
             attnc = attn.clone()
             attnc[mask] = 0
             attn = attnc
 
         heads = torch.matmul(attn, V)
-
-        out = torch.mm(
+        return torch.mm(
             heads.permute(1, 2, 0, 3)
             .contiguous()
             .view(-1, self.n_heads * self.val_dim),
             self.W_out.view(-1, self.embed_dim),
         ).view(batch_size, n_query, self.embed_dim)
 
-        return out
-
 
 class Normalization(nn.Module):
     def __init__(self, embed_dim: int, normalization: str = "batch"):
         super().__init__()
-
         normalizer_class = {"batch": nn.BatchNorm1d, "instance": nn.InstanceNorm1d}.get(
-            normalization, None
+            normalization
         )
-
         self.normalizer = (
             normalizer_class(embed_dim, affine=True)
             if normalizer_class is not None
@@ -150,8 +141,6 @@ class MultiHeadAttentionLayer(nn.Sequential):
 
 
 class ConvEncoder(nn.Module):
-    """Encodes the static & dynamic states using 1d Convolution."""
-
     def __init__(self, input_size: int, hidden_size: int):
         super().__init__()
         self.conv = nn.Conv1d(input_size, hidden_size, kernel_size=1)
@@ -161,18 +150,12 @@ class ConvEncoder(nn.Module):
 
 
 class PointerAttention(nn.Module):
-    """Calculates attention over the input nodes given the current state."""
-
     def __init__(self, hidden_size: int, use_tanh: bool = False, C: float = 10):
         super().__init__()
         self.use_tanh = use_tanh
         self.v = nn.Parameter(torch.zeros(1, 1, hidden_size), requires_grad=True)
-        self.project_d = nn.Conv1d(
-            in_channels=hidden_size, out_channels=hidden_size, kernel_size=1
-        )
-        self.project_ref = nn.Conv1d(
-            in_channels=hidden_size, out_channels=hidden_size, kernel_size=1
-        )
+        self.project_d = nn.Conv1d(hidden_size, hidden_size, kernel_size=1)
+        self.project_ref = nn.Conv1d(hidden_size, hidden_size, kernel_size=1)
         self.project_query = nn.Linear(hidden_size, hidden_size)
         self.C = C
 
@@ -181,7 +164,7 @@ class PointerAttention(nn.Module):
         static_hidden: torch.Tensor,
         dynamic_hidden: torch.Tensor,
         decoder_hidden: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
         d_ex = self.project_d(dynamic_hidden)
         batch_size, hidden_size, n_nodes = static_hidden.size()
         e = self.project_ref(static_hidden)
@@ -191,44 +174,5 @@ class PointerAttention(nn.Module):
         q = decoder_hidden.view(batch_size, hidden_size, 1).expand(
             batch_size, hidden_size, n_nodes
         )
-
         u = torch.bmm(v, torch.tanh(e + q + d_ex)).squeeze(1)
-        logits = self.C * torch.tanh(u) if self.use_tanh else u
-        return e, logits
-
-
-class CriticAttention(nn.Module):
-    """Attention used by the critic value network."""
-
-    def __init__(self, hidden_size: int, use_tanh: bool = False, C: float = 10):
-        super().__init__()
-        self.use_tanh = use_tanh
-        self.v = nn.Parameter(torch.zeros(1, 1, hidden_size), requires_grad=True)
-        self.project_d_ex = nn.Conv1d(
-            in_channels=hidden_size, out_channels=hidden_size, kernel_size=1
-        )
-        self.project_ref = nn.Conv1d(
-            in_channels=hidden_size, out_channels=hidden_size, kernel_size=1
-        )
-        self.project_query = nn.Linear(hidden_size, hidden_size)
-        self.C = C
-
-    def forward(
-        self,
-        static_hidden: torch.Tensor,
-        dynamic_hidden: torch.Tensor,
-        decoder_hidden: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        batch_size, hidden_size, n_nodes = static_hidden.size()
-        d_ex = self.project_d_ex(dynamic_hidden)
-        e = self.project_ref(static_hidden)
-        decoder_hidden = self.project_query(decoder_hidden)
-
-        v = self.v.expand(batch_size, 1, hidden_size)
-        q = decoder_hidden.view(batch_size, hidden_size, 1).expand(
-            batch_size, hidden_size, n_nodes
-        )
-
-        u = torch.bmm(v, torch.tanh(e + q + d_ex)).squeeze(1)
-        logits = self.C * torch.tanh(u) if self.use_tanh else u
-        return e, logits
+        return self.C * torch.tanh(u) if self.use_tanh else u

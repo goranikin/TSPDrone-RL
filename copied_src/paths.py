@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from src.constants import DataSplit, DatasetSize, ProblemName
+from src.constants import DatasetSize, DataSplit, ProblemName
 
 LOCAL_DB_ROOT = Path.home() / "local_db" / "compare-architectures"
 LOCAL_OUTPUT_ROOT = LOCAL_DB_ROOT / "outputs"

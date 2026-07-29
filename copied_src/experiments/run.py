@@ -3,9 +3,21 @@ from pathlib import Path
 from typing import Any, Literal, overload
 
 import hydra
+import torch
 from omegaconf import DictConfig
 from pydantic import BaseModel, ConfigDict, Field
-import torch
+from src.data import build_dataloader, collate_problem_batch
+from src.experiments.parameter_comparison import (
+    INPUT_DIM_BY_PROBLEM,
+    ParameterComparisonSettings,
+    ParameterRow,
+    base_parameter_count,
+    find_closest_budget,
+    resolve_target,
+    validate_parameter_tolerance,
+)
+from src.models.encoder.selection import resolve_encoder_for_problem
+from src.models.model import NCOModel
 from torch.utils.data import DataLoader
 
 from src.config import ResolvedModelParameters, RunConfig, parse_config
@@ -17,22 +29,10 @@ from src.constants import (
     EncoderKind,
     ProblemName,
 )
-from src.data import build_dataloader, collate_problem_batch
-from src.experiments.parameter_comparison import (
-    INPUT_DIM_BY_PROBLEM,
-    ParameterComparisonSettings,
-    ParameterRow,
-    base_parameter_count,
-    find_closest_budget,
-    resolve_target,
-    validate_parameter_tolerance,
-)
 from src.logs import configure_file_logger
-from src.models.encoder.selection import resolve_encoder_for_problem
-from src.models.model import NCOModel
 from src.paths import experiment_log_path, problem_dataset_path, resolve_user_path
-from src.training.trainer import Trainer, TrainingConfig
 from src.training.metrics import wandb_metrics
+from src.training.trainer import Trainer, TrainingConfig
 from src.training.wandb_support import build_wandb_config
 from src.training.wandb_support import finish as finish_wandb
 from src.training.wandb_support import init_from_config as init_wandb

@@ -42,13 +42,15 @@ trainer:
   batch_size: ${scale.batch_size}
   epochs: ${scale.epochs}
   actor_lr: 1.0e-4
-  critic_lr: 1.0e-4
   max_grad_norm: 2.0
   test_interval: ${scale.test_interval}
   save_interval: ${scale.save_interval}
   progress_bar: true
   save_checkpoints: true
   log_every: 25
+  baseline_alpha: 0.05
+  baseline_warmup_episodes: 1
+  exp_baseline_beta: 0.8
 
 n_samples: ${scale.n_samples}
 

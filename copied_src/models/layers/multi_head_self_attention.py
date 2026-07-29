@@ -1,9 +1,8 @@
 import math
 
 import torch
-from torch import nn
-
 from src.models.initialization import initialize_kool_linear, kool_uniform_
+from torch import nn
 
 
 class MultiHeadSelfAttention(nn.Module):

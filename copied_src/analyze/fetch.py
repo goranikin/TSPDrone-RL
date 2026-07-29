@@ -1,9 +1,9 @@
-from collections.abc import Iterable, Mapping
-from datetime import UTC, datetime
 import json
 import math
-from pathlib import Path
 import re
+from collections.abc import Iterable, Mapping
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from src.analyze.metadata import HISTORY_BASE_KEYS, HISTORY_PREFIXES

@@ -1,15 +1,15 @@
 from abc import ABC, abstractmethod
 
 import torch
-from torch import nn
-
-from src.constants import DecodeType
 from src.models.decoding import (
     masked_log_softmax,
     select_action,
     select_set_supervision_action,
 )
 from src.types import EncoderOutput, ProblemDecodeState, SolutionOutput
+from torch import nn
+
+from src.constants import DecodeType
 
 
 class AutoregressiveDecoder(nn.Module, ABC):

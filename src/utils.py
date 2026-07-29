@@ -1,8 +1,4 @@
 import random
-import time
-from collections.abc import Iterator
-from contextlib import contextmanager
-from typing import Any
 
 import numpy as np
 import torch
@@ -27,24 +23,3 @@ def resolve_device(device: str) -> torch.device:
             return torch.device("mps")
         return torch.device("cpu")
     return torch.device(device)
-
-
-def move_to_device(batch: dict[str, Any], device: torch.device) -> dict[str, Any]:
-    moved: dict[str, Any] = {}
-    for key, value in batch.items():
-        moved[key] = value.to(device) if isinstance(value, torch.Tensor) else value
-    return moved
-
-
-@contextmanager
-def timer(device: torch.device | None = None) -> Iterator[dict[str, float]]:
-    payload = {"elapsed": 0.0}
-    if device is not None and device.type == "cuda":
-        torch.cuda.synchronize(device)
-    start = time.perf_counter()
-    try:
-        yield payload
-    finally:
-        if device is not None and device.type == "cuda":
-            torch.cuda.synchronize(device)
-        payload["elapsed"] = time.perf_counter() - start

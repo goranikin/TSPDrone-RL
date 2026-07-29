@@ -1,4 +1,4 @@
-"""Hydra entrypoint for TSP-D A2C training and evaluation."""
+"""Hydra entrypoint for TSP-D RL training and evaluation."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from omegaconf import DictConfig
 from src.config import RunConfig, parse_config
 from src.logs import configure_file_logger
 from src.models.actor import Actor
-from src.models.critic import Critic
 from src.paths import (
     DEFAULT_TRAINED_MODELS_DIR,
     checkpoint_dir,
@@ -50,22 +49,18 @@ def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
         num_layers=cfg.model.num_layers,
         dropout=cfg.model.dropout,
         mask_logits=cfg.model.mask_logits,
+        use_tanh=cfg.model.use_tanh,
         n_heads=cfg.model.n_heads,
         n_encode_layers=cfg.model.n_encode_layers,
-    ).to(device)
-    critic = Critic(
-        hidden_size=cfg.model.hidden_dim,
-        num_layers=cfg.model.num_layers,
     ).to(device)
 
     load_dir = resolve_checkpoint_load_dir(cfg, output_dir)
     if cfg.data.load_checkpoint:
-        _maybe_load_weights(actor, critic, load_dir, device)
+        _maybe_load_weights(actor, load_dir, device)
 
     wandb_config = wandb_support.build_wandb_config(
         cfg=cfg,
         actor=actor,
-        critic=critic,
         output_dir=output_dir,
         resolved_device=str(device),
     )
@@ -79,7 +74,6 @@ def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
 
     trainer = Trainer(
         actor=actor,
-        critic=critic,
         cfg=cfg,
         env=env,
         data_gen=data_gen,
@@ -92,7 +86,8 @@ def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
     summary = (
         f"run=problem={cfg.problem} architecture={cfg.architecture} "
         f"action={cfg.action} n_nodes={cfg.physics.n_nodes} "
-        f"hidden_dim={cfg.model.hidden_dim} device={device} output_dir={output_dir}"
+        f"hidden_dim={cfg.model.hidden_dim} baseline=greedy_rollout "
+        f"device={device} output_dir={output_dir}"
     )
     print(summary)
     logger.info(summary)
@@ -104,7 +99,9 @@ def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
         elif cfg.action == "sampling":
             best_rewards, times = trainer.sampling_batch(cfg.n_samples)
             result = {
-                "best_rewards_mean": float(sum(best_rewards) / max(len(best_rewards), 1)),
+                "best_rewards_mean": float(
+                    sum(best_rewards) / max(len(best_rewards), 1)
+                ),
                 "best_rewards": best_rewards,
                 "times": times,
             }
@@ -135,7 +132,6 @@ def resolve_output_dir(cfg: RunConfig) -> str:
 def resolve_checkpoint_load_dir(cfg: RunConfig, output_dir: str) -> Path:
     if cfg.data.checkpoint_dir is not None:
         return resolve_user_path(cfg.data.checkpoint_dir)
-    # Prefer legacy trained_models/n{N} if present, else run output checkpoint dir.
     legacy = DEFAULT_TRAINED_MODELS_DIR / f"n{cfg.physics.n_nodes}"
     if (legacy / "best_model_actor_truck_params.pkl").exists():
         return legacy
@@ -144,20 +140,17 @@ def resolve_checkpoint_load_dir(cfg: RunConfig, output_dir: str) -> Path:
 
 def _maybe_load_weights(
     actor: Actor,
-    critic: Critic,
     load_dir: Path,
     device: torch.device,
 ) -> None:
     actor_path = load_dir / "best_model_actor_truck_params.pkl"
-    critic_path = load_dir / "best_model_critic_params.pkl"
-    if actor_path.exists() and critic_path.exists():
-        actor.load_state_dict(torch.load(actor_path, map_location=device, weights_only=True))
-        critic.load_state_dict(
-            torch.load(critic_path, map_location=device, weights_only=True)
+    if actor_path.exists():
+        actor.load_state_dict(
+            torch.load(actor_path, map_location=device, weights_only=True)
         )
-        print(f"Successfully loaded weights from {load_dir}")
+        print(f"Successfully loaded actor weights from {load_dir}")
     else:
-        print(f"No checkpoint found under {load_dir}")
+        print(f"No actor checkpoint found under {load_dir}")
 
 
 def _jsonable(value: Any) -> Any:

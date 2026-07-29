@@ -1,9 +1,8 @@
 import torch
-from torch import nn
-
 from src.models.initialization import initialize_kool_linear
 from src.models.layers.attention_encoder_layer import AttentionEncoderLayer
 from src.types import EncoderOutput
+from torch import nn
 
 
 class AttentionEncoder(nn.Module):

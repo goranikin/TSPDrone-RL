@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 
@@ -12,36 +11,19 @@ from src.config import RunConfig
 from src.paths import REPOSITORY_ROOT, resolve_user_path
 
 
-def _resolve_repo_path(path: str) -> str:
+def _resolve_repo_path(path: str) -> Path:
     candidate = resolve_user_path(path)
-    if candidate.is_absolute():
-        return str(candidate)
-    return str(REPOSITORY_ROOT / candidate)
+    return candidate if candidate.is_absolute() else REPOSITORY_ROOT / candidate
 
 
-def _cfg_dict(cfg: RunConfig) -> dict[str, Any]:
-    """Flat dict used by Env/DataGenerator (mirrors legacy options)."""
-    return {
-        "random_seed": cfg.seed,
-        "test_size": cfg.scale.test_size,
-        "n_nodes": cfg.physics.n_nodes,
-        "data_dir": _resolve_repo_path(cfg.data.data_dir),
-        "batch_size": cfg.trainer.batch_size,
-        "v_t": cfg.physics.v_t,
-        "v_d": cfg.physics.v_d,
-        "R": cfg.physics.R,
-        "max_w": cfg.physics.max_w,
-        "decode_len": cfg.model.decode_len,
-        "hidden_dim": cfg.model.hidden_dim,
-    }
-
-
-def create_test_dataset(args: dict[str, Any]) -> np.ndarray:
-    n_problems = args["test_size"]
-    n_nodes = args["n_nodes"]
-    data_dir = args["data_dir"]
-    task_name = f"DroneTruck-size-{n_problems}-len-{n_nodes}.txt"
-    fname = Path(data_dir) / task_name
+def create_test_dataset(
+    *,
+    data_dir: Path,
+    test_size: int,
+    n_nodes: int,
+) -> np.ndarray:
+    task_name = f"DroneTruck-size-{test_size}-len-{n_nodes}.txt"
+    fname = data_dir / task_name
 
     if fname.exists():
         print(f"Loading dataset for {task_name}...")
@@ -49,35 +31,40 @@ def create_test_dataset(args: dict[str, Any]) -> np.ndarray:
         return data.reshape(-1, n_nodes, 3)
 
     print(f"Creating dataset for {task_name}...")
-    Path(data_dir).mkdir(parents=True, exist_ok=True)
-    input_pnt = np.random.uniform(1, 100, size=(n_problems, n_nodes - 1, 2))
+    data_dir.mkdir(parents=True, exist_ok=True)
+    input_pnt = np.random.uniform(1, 100, size=(test_size, n_nodes - 1, 2))
     input_pnt = np.concatenate(
-        [input_pnt, np.random.uniform(0, 1, size=(n_problems, 1, 2))], axis=1
+        [input_pnt, np.random.uniform(0, 1, size=(test_size, 1, 2))], axis=1
     )
-    demand = np.ones([n_problems, n_nodes - 1, 1])
-    network = np.concatenate([demand, np.zeros([n_problems, 1, 1])], 1)
+    demand = np.ones([test_size, n_nodes - 1, 1])
+    network = np.concatenate([demand, np.zeros([test_size, 1, 1])], 1)
     input_data = np.concatenate([input_pnt, network], 2)
     np.savetxt(fname, input_data.reshape(-1, n_nodes * 3))
     return input_data
 
 
+def _sample_instances(batch_size: int, n_nodes: int) -> np.ndarray:
+    input_pnt = np.random.uniform(1, 100, size=(batch_size, n_nodes - 1, 2))
+    input_pnt = np.concatenate(
+        [input_pnt, np.random.uniform(0, 1, size=(batch_size, 1, 2))], axis=1
+    )
+    demand = np.ones([batch_size, n_nodes - 1, 1])
+    network = np.concatenate([demand, np.zeros([batch_size, 1, 1])], 1)
+    return np.concatenate([input_pnt, network], 2)
+
+
 class DataGenerator:
-    def __init__(self, cfg: RunConfig | dict[str, Any]):
-        self.args = cfg if isinstance(cfg, dict) else _cfg_dict(cfg)
-        self.rnd = np.random.RandomState(seed=self.args["random_seed"])
-        self.test_data = create_test_dataset(self.args)
+    def __init__(self, cfg: RunConfig):
+        self.batch_size = cfg.trainer.batch_size
+        self.n_nodes = cfg.physics.n_nodes
+        self.test_data = create_test_dataset(
+            data_dir=_resolve_repo_path(cfg.data.data_dir),
+            test_size=cfg.scale.test_size,
+            n_nodes=cfg.physics.n_nodes,
+        )
 
     def get_train_next(self) -> np.ndarray:
-        args = self.args
-        batch_size = args["batch_size"]
-        n_nodes = args["n_nodes"]
-        input_pnt = np.random.uniform(1, 100, size=(batch_size, n_nodes - 1, 2))
-        input_pnt = np.concatenate(
-            [input_pnt, np.random.uniform(0, 1, size=(batch_size, 1, 2))], axis=1
-        )
-        demand = np.ones([batch_size, n_nodes - 1, 1])
-        network = np.concatenate([demand, np.zeros([batch_size, 1, 1])], 1)
-        return np.concatenate([input_pnt, network], 2)
+        return _sample_instances(self.batch_size, self.n_nodes)
 
     def get_test_all(self) -> np.ndarray:
         return self.test_data
@@ -86,14 +73,11 @@ class DataGenerator:
 class Env:
     """Active TSP-D environment (no customer revisits)."""
 
-    def __init__(self, cfg: RunConfig | dict[str, Any], data: np.ndarray):
-        self.args = cfg if isinstance(cfg, dict) else _cfg_dict(cfg)
-        self.rnd = np.random.RandomState(seed=self.args["random_seed"])
+    def __init__(self, cfg: RunConfig, data: np.ndarray):
         self.input_data = data
-        self.n_nodes = self.args["n_nodes"]
-        self.v_t = self.args["v_t"]
-        self.v_d = self.args["v_d"]
-        self.batch_size = self.args["batch_size"]
+        self.n_nodes = cfg.physics.n_nodes
+        self.v_d = cfg.physics.v_d
+        self.batch_size = cfg.trainer.batch_size
         print("Using Not revisiting nodes")
 
     def reset(self) -> tuple[np.ndarray, np.ndarray]:

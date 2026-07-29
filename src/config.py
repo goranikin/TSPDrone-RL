@@ -1,4 +1,4 @@
-from typing import Annotated, Any, Literal, Self, TypeVar
+from typing import Annotated, Any, Literal, Self
 
 from omegaconf import DictConfig, OmegaConf
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -9,10 +9,7 @@ from src.paths import DEFAULT_DATA_DIR, DEFAULT_RESULTS_DIR, LOCAL_OUTPUT_ROOT
 type PositiveInt = Annotated[int, Field(gt=0)]
 type NonNegativeInt = Annotated[int, Field(ge=0)]
 type PositiveFloat = Annotated[float, Field(gt=0)]
-type NonNegativeFloat = Annotated[float, Field(ge=0)]
 type Probability = Annotated[float, Field(ge=0, le=1)]
-
-ConfigT = TypeVar("ConfigT", bound=BaseModel)
 
 
 class StrictModel(BaseModel):
@@ -65,13 +62,15 @@ class TrainerConfig(StrictModel):
     batch_size: PositiveInt
     epochs: PositiveInt
     actor_lr: PositiveFloat = 1e-4
-    critic_lr: PositiveFloat = 1e-4
     max_grad_norm: PositiveFloat = 2.0
     test_interval: PositiveInt = 200
     save_interval: PositiveInt = 1000
     progress_bar: bool = True
     save_checkpoints: bool = True
     log_every: PositiveInt = 25
+    baseline_alpha: Probability = 0.05
+    baseline_warmup_episodes: NonNegativeInt = 1
+    exp_baseline_beta: Probability = 0.8
 
 
 class WandbConfig(StrictModel):
@@ -124,11 +123,10 @@ class RunConfig(StrictModel):
                 "wandb.name=<pipeline-name> or wandb.enabled=false"
             )
         min_decode = max(round(self.physics.n_nodes * 1.8), 1)
-        if self.model.decode_len < min_decode:
-            self.model.decode_len = min_decode
+        self.model.decode_len = max(self.model.decode_len, min_decode)
         return self
 
 
-def parse_config(model: type[ConfigT], cfg: DictConfig) -> ConfigT:
+def parse_config[ConfigT: BaseModel](model: type[ConfigT], cfg: DictConfig) -> ConfigT:
     payload: Any = OmegaConf.to_container(cfg, resolve=True)
     return model.model_validate(payload)

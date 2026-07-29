@@ -1,9 +1,8 @@
 import torch
-from torch import nn
-
 from src.models.initialization import initialize_kool_linear
 from src.models.layers.multi_head_self_attention import MultiHeadSelfAttention
 from src.models.layers.node_batch_norm import NodeBatchNorm
+from torch import nn
 
 
 class AttentionEncoderLayer(nn.Module):

@@ -1,7 +1,6 @@
 import torch
-from torch import nn
-
 from src.models.initialization import kool_uniform_
+from torch import nn
 
 
 class NodeBatchNorm(nn.Module):

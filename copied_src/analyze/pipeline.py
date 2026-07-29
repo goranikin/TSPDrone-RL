@@ -26,6 +26,7 @@ from src.analyze.results import (
 )
 from src.analyze.sanity import build_coverage_table, build_sanity_table
 from src.analyze.visualization import create_all_figures
+
 from src.paths import DOCS_ROOT, WANDB_ANALYSIS_ROOT, resolve_user_path
 
 

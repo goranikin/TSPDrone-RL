@@ -5,7 +5,6 @@ from typing import Any, cast
 import numpy as np
 import pandas as pd
 from scipy import stats
-
 from src.analyze.metadata import DECODERS, PROBLEMS, hypothesis_decoders
 from src.analyze.processing import COMPARISON_CONTEXT_COLUMNS
 

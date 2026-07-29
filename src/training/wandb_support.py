@@ -1,7 +1,7 @@
 import hashlib
 import json
-from pathlib import Path
 import subprocess
+from pathlib import Path
 from typing import Any
 
 import wandb
@@ -13,12 +13,10 @@ def build_wandb_config(
     *,
     cfg: RunConfig,
     actor: Any,
-    critic: Any,
     output_dir: str,
     resolved_device: str,
 ) -> dict[str, Any]:
     actor_params = sum(p.numel() for p in actor.parameters())
-    critic_params = sum(p.numel() for p in critic.parameters())
     config: dict[str, Any] = {
         "run": {
             "problem": cfg.problem,
@@ -34,10 +32,10 @@ def build_wandb_config(
         "model": {
             **cfg.model.model_dump(mode="json"),
             "actor_params": actor_params,
-            "critic_params": critic_params,
-            "total_params": actor_params + critic_params,
+            "total_params": actor_params,
         },
         "trainer": cfg.trainer.model_dump(mode="json"),
+        "baseline": "greedy_rollout",
         "data": cfg.data.model_dump(mode="json"),
         "paths": {
             "output_dir": output_dir,

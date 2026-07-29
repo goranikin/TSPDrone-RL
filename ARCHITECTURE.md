@@ -18,18 +18,17 @@ TSPDrone-RL/
 │   ├── config.py               # pydantic RunConfig
 │   ├── constants.py            # problem / architecture literals
 │   ├── paths.py                # repo + local_db roots
-│   ├── types.py                # validated result containers
-│   ├── utils.py                # seed / device / timer
+│   ├── utils.py                # seed / device helpers
 │   ├── logs.py                 # file logger
 │   ├── models/
 │   │   ├── actor.py            # policy network
-│   │   ├── critic.py           # value network
 │   │   ├── encoder/            # graph attention static encoder
 │   │   └── layers/             # attention / conv building blocks
 │   ├── problems/
 │   │   └── tspd.py             # DataGenerator + Env (no revisits)
 │   ├── training/
-│   │   ├── trainer.py          # A2C train / test / sampling
+│   │   ├── trainer.py          # REINFORCE train / test / sampling
+│   │   ├── baselines.py        # greedy rollout + EMA baselines
 │   │   ├── metrics.py
 │   │   └── wandb_support.py
 │   └── experiments/
@@ -57,13 +56,13 @@ Hydra (configs/train.yaml)
                                                       │
                           ┌───────────────────────────┼───────────────────────────┐
                           ▼                           ▼                           ▼
-                       Actor                       Critic                    Optimizer
-                   (policy π)                    (value V)                 Adam × 2
+                       Actor                   Rollout baseline              Optimizer
+                   (policy π)               (frozen greedy copy)               Adam
 ```
 
-1. **`src.experiments.run`** parses Hydra → `RunConfig`, seeds RNGs, builds data/env/models, optionally loads `trained_models/n{N}/`, then dispatches `action=train|test|sampling`.
+1. **`src.experiments.run`** parses Hydra → `RunConfig`, seeds RNGs, builds data/env/actor, optionally loads `trained_models/n{N}/`, then dispatches `action=train|test|sampling`.
 2. **`Trainer`** rolls out episodes: actor picks truck then drone destinations; `Env.step` advances simulation time.
-3. Objective is minimizing makespan (`env.current_time`). Critic estimates cost; advantage = `R − V(s)` drives the actor update.
+3. Objective is minimizing makespan (`env.current_time`). A frozen **greedy rollout** of a baseline actor copy estimates `b(x)`; advantage = `R − b` drives the policy update (EMA warmup for the first episodes).
 
 ---
 
@@ -108,7 +107,10 @@ Validated pydantic config. Notable groups:
 
 ### `src/training/trainer.py`
 
-Same A2C truck→drone→step→loss cycle as before, plus tqdm, `history.json`, and W&B metrics (`train/makespan`, `val/makespan`).
+Sampled truck→drone→step rollout, then greedy rollout baseline on the same batch:
+`loss = mean((R − b).detach() * sum(log π))`. Periodic paired t-test may refresh the
+frozen baseline actor (lower makespan = better). EMA warmup for the first
+`baseline_warmup_episodes`.
 
 ### `src/models/`
 

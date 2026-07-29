@@ -4,9 +4,6 @@ from typing import Any
 
 import torch
 import torch.nn.functional as F
-from torch import nn
-
-from src.constants import DecoderKind, DecodeType, EncoderKind, ProblemName
 from src.models.decoder.attention_model import AttentionModelDecoder
 from src.models.decoder.attention_model_without_glimpse import (
     AttentionModelDecoderWithoutGlimpse,
@@ -17,7 +14,6 @@ from src.models.decoder.sigmoid_subset import SigmoidSubsetDecoder
 from src.models.decoder.transformer_pointer import TransformerPointerDecoder
 from src.models.decoding import actions_to_selected_mask
 from src.models.encoder.attention import AttentionEncoder
-from src.models.encoder.graph_attention import GraphAttentionEncoder
 from src.models.encoder.selection import encoder_supports_problem
 from src.problems.base import Problem
 from src.problems.registry import make_problem
@@ -27,6 +23,10 @@ from src.types import (
     SolutionOutput,
     SupervisedTarget,
 )
+from torch import nn
+
+from src.constants import DecoderKind, DecodeType, EncoderKind, ProblemName
+from src.models.encoder.graph_attention import GraphAttentionEncoder
 
 
 class NCOModel(nn.Module):
@@ -194,7 +194,7 @@ class NCOModel(nn.Module):
     ) -> torch.Tensor:
         encoder_output = self.encode(batch)
         if not isinstance(self.decoder, SigmoidSubsetDecoder):
-            raise RuntimeError("Expected SigmoidSubsetDecoder")
+            raise TypeError("Expected SigmoidSubsetDecoder")
         logits = self.decoder.logits(encoder_output)
         target_mask = target.selected_mask
         if target_mask is None and target.actions is not None:

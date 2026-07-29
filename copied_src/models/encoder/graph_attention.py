@@ -1,7 +1,6 @@
 """Adjacency-aware attention encoder for sparse graph problems."""
 
 import torch
-
 from src.models.encoder.attention import AttentionEncoder
 from src.types import EncoderOutput
 

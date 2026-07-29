@@ -6,6 +6,7 @@ from pathlib import Path
 
 import hydra
 from omegaconf import DictConfig
+from src.models.encoder.selection import encoders_for_problem
 
 from src.config import MatrixConfig, ScaleConfig, WandbConfig, parse_config
 from src.constants import (
@@ -18,7 +19,6 @@ from src.constants import (
     TrainingMode,
 )
 from src.logs import configure_file_logger
-from src.models.encoder.selection import encoders_for_problem
 from src.paths import (
     experiment_log_path,
     problem_split_paths,

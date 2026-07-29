@@ -13,6 +13,8 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from src.models.encoder.selection import encoders_for_problem
+from src.models.model import NCOModel
 
 from src.constants import (
     DECODER_KINDS,
@@ -22,8 +24,6 @@ from src.constants import (
     ProblemName,
 )
 from src.logs import configure_file_logger
-from src.models.encoder.selection import encoders_for_problem
-from src.models.model import NCOModel
 from src.paths import experiment_log_path, resolve_user_path
 
 INPUT_DIM_BY_PROBLEM: dict[ProblemName, int] = {
