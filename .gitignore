@@ -4,8 +4,7 @@ results/*.txt
 trained_models/*.txt
 trained_models/*.pkl
 
-# Julia (local depot / build artifacts under the package)
-julia/**/Manifest.toml
+# Julia local build artifacts
 julia/**/.CondaPkg/
 *.jl.*.cov
 *.jl.cov

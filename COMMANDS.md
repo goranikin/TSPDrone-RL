@@ -285,7 +285,7 @@ Only external solver dep: **Concorde.jl**. Setup for macOS and Ubuntu 24.04: see
 
 ```bash
 # one-time
-julia --project=julia/TSPDroneBaselines -e 'using Pkg; Pkg.instantiate(); Pkg.build("Concorde")'
+julia --project=julia/TSPDroneBaselines -e 'using Pkg; Pkg.resolve(); Pkg.instantiate(); Pkg.build("Concorde")'
 
 # smoke (5 instances, N=20)
 julia --project=julia/TSPDroneBaselines \

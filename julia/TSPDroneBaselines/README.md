@@ -38,7 +38,7 @@ brew install gcc
 
 # 3) From repo root
 cd /path/to/TSPDrone-RL
-julia --project=julia/TSPDroneBaselines -e 'using Pkg; Pkg.instantiate(); Pkg.build("Concorde")'
+julia --project=julia/TSPDroneBaselines -e 'using Pkg; Pkg.resolve(); Pkg.instantiate(); Pkg.build("Concorde")'
 
 # smoke test
 julia --project=julia/TSPDroneBaselines -e '
@@ -70,7 +70,7 @@ source ~/.bashrc
 
 # 3) From repo root
 cd ~/path/to/TSPDrone-RL
-julia --project=julia/TSPDroneBaselines -e 'using Pkg; Pkg.instantiate(); Pkg.build("Concorde")'
+julia --project=julia/TSPDroneBaselines -e 'using Pkg; Pkg.resolve(); Pkg.instantiate(); Pkg.build("Concorde")'
 
 # smoke test (same as macOS)
 julia --project=julia/TSPDroneBaselines -e '

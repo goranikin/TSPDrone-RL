@@ -7,6 +7,7 @@
 
 using Pkg
 Pkg.activate(joinpath(@__DIR__, ".."))
+Pkg.resolve()
 Pkg.instantiate()
 
 using TSPDroneBaselines
