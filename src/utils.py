@@ -13,13 +13,19 @@ def set_seed(seed: int) -> None:
 
 
 def resolve_device(device: str) -> torch.device:
-    if device == "auto":
-        if torch.cuda.is_available():
-            return torch.device("cuda")
-        if (
-            getattr(torch.backends, "mps", None) is not None
-            and torch.backends.mps.is_available()
-        ):
-            return torch.device("mps")
-        return torch.device("cpu")
-    return torch.device(device)
+    """Resolve a device string. CUDA is required; CPU/MPS fallbacks are disabled."""
+    if device in {"auto", "cuda"}:
+        if not torch.cuda.is_available():
+            raise RuntimeError(
+                "CUDA is required; torch.cuda.is_available() is False. "
+                "Install a PyTorch build matching your NVIDIA driver, or upgrade "
+                "the driver. CPU/MPS fallback is disabled."
+            )
+        return torch.device("cuda")
+    resolved = torch.device(device)
+    if resolved.type != "cuda":
+        raise RuntimeError(
+            f"CUDA is required; refusing non-CUDA device={resolved!s} "
+            f"(from device={device!r})."
+        )
+    return resolved

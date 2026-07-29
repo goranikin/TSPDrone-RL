@@ -76,15 +76,15 @@ class Policy(nn.Module):
         if self.mask_logits:
             logits = logits.masked_fill(avail_actions == 0, -self.mask_value)
 
-        logprobs = torch.log_softmax(logits, dim=-1)
-        probs = torch.exp(logprobs)
+        # Sample in fp32: bf16/fp16 probs often fail Categorical's Simplex check.
+        logits_f = logits.float()
         if self.training or self.sample_mode:
-            distribution = torch.distributions.Categorical(probs)
+            distribution = torch.distributions.Categorical(logits=logits_f)
             action = distribution.sample()
             logp = distribution.log_prob(action)
         else:
-            prob, action = torch.max(probs, 1)
-            logp = prob.log()
+            logprobs = torch.log_softmax(logits_f, dim=-1)
+            logp, action = torch.max(logprobs, 1)
         return action, logp * (1.0 - terminated)
 
     def node_embedding(self, index: torch.Tensor) -> torch.Tensor:

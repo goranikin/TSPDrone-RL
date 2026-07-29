@@ -4,7 +4,7 @@ defaults:
   - _self_
 
 seed: 5
-device: auto
+device: cuda
 problem: tspd
 decoder: tspd_lstm
 dynamics: on
@@ -40,6 +40,15 @@ model:
   d_ff: 512
   tanh_clip: 10.0
   decode_len: 30
+
+parameter_budget:
+  enabled: true
+  match_target: tspd_lstm_on
+  max_delta_pct: 1.0
+  strict: true
+  min_hidden_dim: 128
+  max_hidden_dim: 384
+  hidden_dim_step: 8
 
 trainer:
   batch_size: ${scale.batch_size}

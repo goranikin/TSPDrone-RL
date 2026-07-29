@@ -12,6 +12,7 @@ from omegaconf import DictConfig
 
 from src.config import RunConfig, parse_config
 from src.logs import configure_file_logger
+from src.models.parameter_budget import MatchedDimensions, resolve_matched_dimensions
 from src.models.policy import Policy, build_policy
 from src.paths import (
     DEFAULT_TRAINED_MODELS_DIR,
@@ -29,8 +30,61 @@ def main(cfg: DictConfig) -> None:
     run_from_config(cfg)
 
 
+def resolve_model_dimensions(cfg: RunConfig) -> MatchedDimensions:
+    if not cfg.parameter_budget.enabled:
+        params = sum(
+            parameter.numel()
+            for parameter in build_policy(
+                decoder=cfg.decoder,
+                dynamics=cfg.dynamics,
+                hidden_dim=cfg.model.hidden_dim,
+                n_heads=cfg.model.n_heads,
+                n_encode_layers=cfg.model.n_encode_layers,
+                d_ff=cfg.model.d_ff,
+                dropout=cfg.model.dropout,
+                num_layers=cfg.model.num_layers,
+                use_tanh=cfg.model.use_tanh,
+                tanh_clip=cfg.model.tanh_clip,
+                mask_logits=cfg.model.mask_logits,
+            ).parameters()
+        )
+        return MatchedDimensions(
+            decoder=cfg.decoder,
+            dynamics=cfg.dynamics,
+            hidden_dim=cfg.model.hidden_dim,
+            d_ff=cfg.model.d_ff,
+            matched_params=params,
+            target_params=params,
+            base_hidden_dim=cfg.model.hidden_dim,
+            base_d_ff=cfg.model.d_ff,
+            delta=0,
+            delta_pct=0.0,
+            source="disabled",
+        )
+    return resolve_matched_dimensions(
+        decoder=cfg.decoder,
+        dynamics=cfg.dynamics,
+        n_heads=cfg.model.n_heads,
+        n_encode_layers=cfg.model.n_encode_layers,
+        dropout=cfg.model.dropout,
+        num_layers=cfg.model.num_layers,
+        use_tanh=cfg.model.use_tanh,
+        tanh_clip=cfg.model.tanh_clip,
+        mask_logits=cfg.model.mask_logits,
+        base_hidden_dim=cfg.model.hidden_dim,
+        base_d_ff=cfg.model.d_ff,
+        match_target=cfg.parameter_budget.match_target,
+        max_delta_pct=cfg.parameter_budget.max_delta_pct,
+        strict=cfg.parameter_budget.strict,
+        min_hidden_dim=cfg.parameter_budget.min_hidden_dim,
+        max_hidden_dim=cfg.parameter_budget.max_hidden_dim,
+        hidden_dim_step=cfg.parameter_budget.hidden_dim_step,
+    )
+
+
 def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
     cfg = parse_config(RunConfig, raw_cfg)
+    _require_cuda()
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
     accelerator = Accelerator(
         mixed_precision=cfg.trainer.mixed_precision,
@@ -39,6 +93,11 @@ def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
     )
     set_seed(cfg.seed, device_specific=True)
     device = accelerator.device
+    if device.type != "cuda":
+        raise RuntimeError(
+            f"CUDA is required, but Accelerator selected device={device}. "
+            "Check CUDA_VISIBLE_DEVICES and that accelerate is launching with GPUs."
+        )
 
     output_dir = resolve_output_dir(cfg)
     if accelerator.is_main_process:
@@ -47,22 +106,30 @@ def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
 
     log_path = experiment_log_path("run.log", data_root=cfg.data.root)
     logger = (
-        configure_file_logger("run", log_path)
-        if accelerator.is_main_process
-        else None
+        configure_file_logger("run", log_path) if accelerator.is_main_process else None
     )
 
     data_gen = DataGenerator(cfg)
     test_data = data_gen.get_test_all()
     env = Env(cfg, test_data)
 
+    matched = resolve_model_dimensions(cfg)
+    if accelerator.is_main_process:
+        print(
+            f"parameter_budget enabled={cfg.parameter_budget.enabled} "
+            f"target={matched.target_params:,} matched={matched.matched_params:,} "
+            f"delta_pct={matched.delta_pct:+.3f}% "
+            f"hidden_dim={matched.hidden_dim} d_ff={matched.d_ff} "
+            f"source={matched.source}"
+        )
+
     policy = build_policy(
         decoder=cfg.decoder,
         dynamics=cfg.dynamics,
-        hidden_dim=cfg.model.hidden_dim,
+        hidden_dim=matched.hidden_dim,
         n_heads=cfg.model.n_heads,
         n_encode_layers=cfg.model.n_encode_layers,
-        d_ff=cfg.model.d_ff,
+        d_ff=matched.d_ff,
         dropout=cfg.model.dropout,
         num_layers=cfg.model.num_layers,
         use_tanh=cfg.model.use_tanh,
@@ -81,6 +148,7 @@ def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
             actor=policy,
             output_dir=output_dir,
             resolved_device=str(device),
+            matched=matched,
         )
         wandb_config["run"]["num_processes"] = accelerator.num_processes
         wandb_config["run"]["mixed_precision"] = cfg.trainer.mixed_precision
@@ -95,6 +163,7 @@ def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
                 f"dynamics-{cfg.dynamics}",
                 cfg.mode,
                 cfg.action,
+                "param-matched" if cfg.parameter_budget.enabled else "param-unmatched",
             ],
             config=wandb_config,
         )
@@ -114,7 +183,8 @@ def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
         f"run=problem={cfg.problem} architecture={cfg.architecture} "
         f"decoder={cfg.decoder} dynamics={cfg.dynamics} "
         f"action={cfg.action} n_nodes={cfg.physics.n_nodes} "
-        f"hidden_dim={cfg.model.hidden_dim} baseline=greedy_rollout "
+        f"hidden_dim={matched.hidden_dim} d_ff={matched.d_ff} "
+        f"params={matched.matched_params} baseline=greedy_rollout "
         f"device={device} processes={accelerator.num_processes} "
         f"mixed_precision={cfg.trainer.mixed_precision} "
         f"output_dir={output_dir}"
@@ -155,6 +225,19 @@ def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
     finally:
         if wandb_logging:
             wandb_support.finish()
+
+
+def _require_cuda() -> None:
+    if torch.cuda.is_available():
+        return
+    cuda_built = getattr(torch.version, "cuda", None)
+    raise RuntimeError(
+        "CUDA is required for training/eval; CPU fallback is disabled. "
+        f"torch.cuda.is_available() is False (torch={torch.__version__}, "
+        f"torch.version.cuda={cuda_built}). "
+        "Install a PyTorch wheel that matches your NVIDIA driver "
+        "(e.g. cu128 when nvidia-smi reports CUDA 12.8), or upgrade the driver."
+    )
 
 
 def resolve_output_dir(cfg: RunConfig) -> str:
@@ -206,7 +289,9 @@ def _maybe_load_weights(
             return
         print(f"Successfully loaded policy weights from {load_dir}")
     except Exception as exc:  # noqa: BLE001
-        print(f"Failed to load checkpoint from {load_dir}: {exc}; starting from scratch")
+        print(
+            f"Failed to load checkpoint from {load_dir}: {exc}; starting from scratch"
+        )
 
 
 def _jsonable(value: Any) -> Any:

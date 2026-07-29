@@ -67,6 +67,18 @@ class ModelConfig(StrictModel):
     decode_len: PositiveInt = 30
 
 
+class ParameterBudgetConfig(StrictModel):
+    """Match total params to ``tspd_lstm_on`` at ``model.hidden_dim`` / ``model.d_ff``."""
+
+    enabled: bool = True
+    match_target: Literal["tspd_lstm_on"] = "tspd_lstm_on"
+    max_delta_pct: PositiveFloat = 1.0
+    strict: bool = True
+    min_hidden_dim: PositiveInt = 128
+    max_hidden_dim: PositiveInt = 384
+    hidden_dim_step: PositiveInt = 8
+
+
 class TrainerConfig(StrictModel):
     batch_size: PositiveInt
     epochs: PositiveInt
@@ -123,6 +135,7 @@ class RunConfig(StrictModel):
     data: DataConfig
     paths: OutputPathsConfig
     model: ModelConfig
+    parameter_budget: ParameterBudgetConfig
     trainer: TrainerConfig
     wandb: WandbConfig
     n_samples: PositiveInt = 5

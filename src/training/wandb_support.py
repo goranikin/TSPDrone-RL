@@ -7,6 +7,7 @@ from typing import Any
 import wandb
 
 from src.config import RunConfig
+from src.models.parameter_budget import MatchedDimensions
 
 
 def build_wandb_config(
@@ -15,8 +16,28 @@ def build_wandb_config(
     actor: Any,
     output_dir: str,
     resolved_device: str,
+    matched: MatchedDimensions | None = None,
 ) -> dict[str, Any]:
     actor_params = sum(p.numel() for p in actor.parameters())
+    model_payload = {
+        **cfg.model.model_dump(mode="json"),
+        "policy_params": actor_params,
+        "total_params": actor_params,
+    }
+    if matched is not None:
+        model_payload.update(
+            {
+                "hidden_dim": matched.hidden_dim,
+                "d_ff": matched.d_ff,
+                "base_hidden_dim": matched.base_hidden_dim,
+                "base_d_ff": matched.base_d_ff,
+                "matched_params": matched.matched_params,
+                "target_params": matched.target_params,
+                "param_delta": matched.delta,
+                "param_delta_pct": matched.delta_pct,
+                "param_match_source": matched.source,
+            }
+        )
     config: dict[str, Any] = {
         "run": {
             "problem": cfg.problem,
@@ -31,11 +52,8 @@ def build_wandb_config(
         },
         "physics": cfg.physics.model_dump(mode="json"),
         "scale": cfg.scale.model_dump(mode="json"),
-        "model": {
-            **cfg.model.model_dump(mode="json"),
-            "policy_params": actor_params,
-            "total_params": actor_params,
-        },
+        "model": model_payload,
+        "parameter_budget": cfg.parameter_budget.model_dump(mode="json"),
         "trainer": cfg.trainer.model_dump(mode="json"),
         "baseline": "greedy_rollout",
         "data": cfg.data.model_dump(mode="json"),
