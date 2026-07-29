@@ -3,7 +3,14 @@ from typing import Annotated, Any, Literal, Self
 from omegaconf import DictConfig, OmegaConf
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from src.constants import ArchitectureKind, ProblemName, RunAction, TrainingMode
+from src.constants import (
+    DecoderKind,
+    DynamicsMode,
+    ProblemName,
+    RunAction,
+    TrainingMode,
+    architecture_name,
+)
 from src.paths import DEFAULT_DATA_DIR, DEFAULT_RESULTS_DIR, LOCAL_OUTPUT_ROOT
 
 type PositiveInt = Annotated[int, Field(gt=0)]
@@ -55,6 +62,8 @@ class ModelConfig(StrictModel):
     use_tanh: bool = False
     n_heads: PositiveInt = 8
     n_encode_layers: PositiveInt = 3
+    d_ff: PositiveInt = 512
+    tanh_clip: PositiveFloat = 10.0
     decode_len: PositiveInt = 30
 
 
@@ -103,7 +112,8 @@ class RunConfig(StrictModel):
     seed: int
     device: str
     problem: ProblemName
-    architecture: ArchitectureKind
+    decoder: DecoderKind
+    dynamics: DynamicsMode
     mode: TrainingMode
     action: RunAction
     scale: ScaleConfig
@@ -115,6 +125,10 @@ class RunConfig(StrictModel):
     wandb: WandbConfig
     n_samples: PositiveInt = 5
 
+    @property
+    def architecture(self) -> str:
+        return architecture_name(self.decoder, self.dynamics)
+
     @model_validator(mode="after")
     def validate_run_config(self) -> Self:
         if self.wandb.enabled and self.wandb.name is None:
@@ -122,6 +136,8 @@ class RunConfig(StrictModel):
                 "wandb.name is required when W&B logging is enabled; pass "
                 "wandb.name=<pipeline-name> or wandb.enabled=false"
             )
+        if self.model.hidden_dim % self.model.n_heads:
+            raise ValueError("model.hidden_dim must be divisible by model.n_heads")
         min_decode = max(round(self.physics.n_nodes * 1.8), 1)
         self.model.decode_len = max(self.model.decode_len, min_decode)
         return self

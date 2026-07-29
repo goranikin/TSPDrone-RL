@@ -6,7 +6,8 @@ defaults:
 seed: 5
 device: auto
 problem: tspd
-architecture: lstm_attention
+decoder: tspd_lstm
+dynamics: on
 mode: rl
 action: train
 
@@ -36,6 +37,8 @@ model:
   use_tanh: false
   n_heads: 8
   n_encode_layers: 3
+  d_ff: 512
+  tanh_clip: 10.0
   decode_len: 30
 
 trainer:

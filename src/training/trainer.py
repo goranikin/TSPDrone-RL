@@ -1,3 +1,7 @@
+"""Policy-gradient trainer for TSP-D with greedy rollout baseline."""
+
+from __future__ import annotations
+
 import json
 import logging
 import time
@@ -10,7 +14,7 @@ from torch import optim
 from tqdm.auto import tqdm
 
 from src.config import RunConfig
-from src.models.actor import Actor
+from src.models.policy import Policy
 from src.paths import REPOSITORY_ROOT, checkpoint_dir, resolve_user_path
 from src.problems.tspd import DataGenerator, Env
 from src.training import wandb_support
@@ -27,7 +31,7 @@ class Trainer:
     def __init__(
         self,
         *,
-        actor: Actor,
+        policy: Policy,
         cfg: RunConfig,
         env: Env,
         data_gen: DataGenerator,
@@ -36,7 +40,7 @@ class Trainer:
         logger: logging.Logger | None = None,
         wandb_log: bool = False,
     ) -> None:
-        self.actor = actor
+        self.policy = policy
         self.cfg = cfg
         self.env = env
         self.data_gen = data_gen
@@ -61,17 +65,25 @@ class Trainer:
             alpha=cfg.trainer.baseline_alpha,
         )
 
+    @property
+    def actor(self) -> Policy:
+        """Alias used by rollout baseline deepcopy helpers."""
+        return self.policy
+
     def train(self) -> dict[str, Any]:
-        actor = self.actor
+        policy = self.policy
         cfg = self.cfg
-        actor.train()
-        actor_optim = optim.Adam(actor.parameters(), lr=cfg.trainer.actor_lr)
+        policy.train()
+        optimizer = optim.Adam(policy.parameters(), lr=cfg.trainer.actor_lr)
 
         best_model = float("inf")
         history: list[dict[str, Any]] = []
         r_test: list[float] = []
         start = time.time()
-        print("training started (greedy rollout baseline)")
+        print(
+            f"training started architecture={cfg.architecture} "
+            f"(greedy rollout baseline)"
+        )
 
         epoch_iter: Any = range(cfg.trainer.epochs)
         if cfg.trainer.progress_bar:
@@ -82,11 +94,11 @@ class Trainer:
                 episode >= cfg.trainer.baseline_warmup_episodes
                 and self.rollout_baseline.baseline_actor is None
             ):
-                self.rollout_baseline.init_from(actor)
+                self.rollout_baseline.init_from(policy)
 
             data = self.data_gen.get_train_next()
             makespan, log_sum = self._rollout(
-                actor,
+                policy,
                 data,
                 mode="train_sample",
                 collect_log_probs=True,
@@ -96,12 +108,12 @@ class Trainer:
             baseline = self._baseline_value(makespan, data, episode)
             actor_loss = torch.mean((makespan - baseline).detach() * log_sum)
 
-            actor_optim.zero_grad()
+            optimizer.zero_grad()
             actor_loss.backward()
             torch.nn.utils.clip_grad_norm_(
-                actor.parameters(), cfg.trainer.max_grad_norm
+                policy.parameters(), cfg.trainer.max_grad_norm
             )
-            actor_optim.step()
+            optimizer.step()
 
             train_makespan = float(makespan.mean().item())
             baseline_mean = float(baseline.mean().item())
@@ -147,7 +159,7 @@ class Trainer:
                     row["best_val_makespan"] = best_model
 
                 updated = self.rollout_baseline.maybe_update(
-                    actor,
+                    policy,
                     self.data_gen.get_test_all(),
                     self._greedy_makespans,
                     warmup_done=episode + 1 >= cfg.trainer.baseline_warmup_episodes,
@@ -170,6 +182,7 @@ class Trainer:
             "history": history,
             "best_val_makespan": best_model if best_model < float("inf") else None,
             "training_time_sec": time.time() - start,
+            "architecture": cfg.architecture,
         }
         self._write_history(result)
         if self.wandb_log:
@@ -177,6 +190,7 @@ class Trainer:
                 {
                     "best_val_makespan": result["best_val_makespan"],
                     "training_time_sec": result["training_time_sec"],
+                    "architecture": cfg.architecture,
                 }
             )
             wandb_support.log(
@@ -196,49 +210,47 @@ class Trainer:
         if episode < self.cfg.trainer.baseline_warmup_episodes:
             return self.exp_baseline.evaluate(makespan)
         if self.rollout_baseline.baseline_actor is None:
-            self.rollout_baseline.init_from(self.actor)
+            self.rollout_baseline.init_from(self.policy)
         return self.rollout_baseline.evaluate(data, self._greedy_makespans)
 
     @torch.no_grad()
-    def _greedy_makespans(self, actor: Actor, data: np.ndarray) -> torch.Tensor:
-        makespan, _ = self._rollout(actor, data, mode="greedy", collect_log_probs=False)
+    def _greedy_makespans(self, policy: Policy, data: np.ndarray) -> torch.Tensor:
+        makespan, _ = self._rollout(
+            policy, data, mode="greedy", collect_log_probs=False
+        )
         return makespan
 
     def _rollout(
         self,
-        actor: Actor,
+        policy: Policy,
         data: np.ndarray,
         *,
         mode: DecodeMode,
         collect_log_probs: bool,
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
-        """Decode one episode; return (makespans [B], sum log-probs [B] | None)."""
         env = self.env
         device = self.device
         env.input_data = data
         state, avail_actions = env.reset()
         batch_size = env.batch_size
 
-        was_training = actor.training
-        was_sample_mode = actor.sample_mode
+        was_training = policy.training
+        was_sample_mode = policy.sample_mode
         if mode == "train_sample":
-            actor.train()
-            actor.set_sample_mode(False)
+            policy.train()
+            policy.set_sample_mode(False)
         elif mode == "eval_sample":
-            actor.eval()
-            actor.set_sample_mode(True)
+            policy.eval()
+            policy.set_sample_mode(True)
         else:
-            actor.eval()
-            actor.set_sample_mode(False)
+            policy.eval()
+            policy.set_sample_mode(False)
 
         coords = torch.from_numpy(data[:, :, :2].astype(np.float32)).to(device)
-        static_hidden = actor.embed_static(coords).permute(0, 2, 1)
-        last_hh = (
-            torch.zeros(1, batch_size, self.hidden_dim, device=device),
-            torch.zeros(1, batch_size, self.hidden_dim, device=device),
-        )
+        policy.embed(coords)
+        policy.reset_episode(batch_size)
+        prev_embed = policy.depot_embedding()
         ter = np.zeros(batch_size, dtype=np.float32)
-        decoder_input = static_hidden[:, :, env.n_nodes - 1].unsqueeze(2)
         time_vec_truck = np.zeros([batch_size, 2])
         time_vec_drone = np.zeros([batch_size, 3])
         logs: list[torch.Tensor] = []
@@ -257,13 +269,8 @@ class Trainer:
                         dynamic = torch.from_numpy(
                             np.expand_dims(state[:, :, 0], 2).astype(np.float32)
                         ).to(device)
-                        idx_truck, logp, last_hh = actor(
-                            static_hidden,
-                            dynamic,
-                            decoder_input,
-                            last_hh,
-                            terminated,
-                            avail,
+                        idx_truck, logp = policy(
+                            prev_embed, dynamic, terminated, avail
                         )
                         free = np.where(
                             np.logical_and(
@@ -281,21 +288,12 @@ class Trainer:
                         dynamic = torch.from_numpy(
                             np.expand_dims(state[:, :, 1], 2).astype(np.float32)
                         ).to(device)
-                        idx_drone, logp, last_hh = actor(
-                            static_hidden,
-                            dynamic,
-                            decoder_input,
-                            last_hh,
-                            terminated,
-                            avail,
+                        idx_drone, logp = policy(
+                            prev_embed, dynamic, terminated, avail
                         )
                         idx = idx_drone
 
-                    decoder_input = torch.gather(
-                        static_hidden,
-                        2,
-                        idx.view(-1, 1, 1).expand(batch_size, self.hidden_dim, 1),
-                    ).detach()
+                    prev_embed = policy.node_embedding(idx).detach()
                     if collect_log_probs:
                         logs.append(logp.unsqueeze(1))
 
@@ -309,13 +307,13 @@ class Trainer:
 
         makespan = torch.from_numpy(env.current_time.astype(np.float32)).to(device)
         log_sum = torch.cat(logs, dim=1).sum(dim=1) if collect_log_probs else None
-        actor.train(was_training)
-        actor.set_sample_mode(was_sample_mode)
+        policy.train(was_training)
+        policy.set_sample_mode(was_sample_mode)
         return makespan, log_sum
 
     def test(self) -> float:
         data = self.data_gen.get_test_all()
-        makespan = self._greedy_makespans(self.actor, data)
+        makespan = self._greedy_makespans(self.policy, data)
         values = makespan.detach().cpu().numpy()
         print("finished greedy eval")
         np.savetxt(
@@ -326,7 +324,7 @@ class Trainer:
             ),
             values,
         )
-        self.actor.train()
+        self.policy.train()
         return makespan_metrics(values).makespan
 
     def sampling_batch(
@@ -343,7 +341,7 @@ class Trainer:
                 np.expand_dims(data[index], axis=0), sample_size, axis=0
             )
             makespan, _ = self._rollout(
-                self.actor,
+                self.policy,
                 repeated,
                 mode="eval_sample",
                 collect_log_probs=False,
@@ -355,12 +353,12 @@ class Trainer:
             self.results_dir / f"best_rewards_list_{sample_size}_samples.txt",
             best_rewards,
         )
-        self.actor.train()
+        self.policy.train()
         return best_rewards, times
 
     def _save_checkpoint(self, prefix: str) -> None:
         torch.save(
-            self.actor.state_dict(),
+            self.policy.state_dict(),
             self.ckpt_dir / f"{prefix}_actor_truck_params.pkl",
         )
 

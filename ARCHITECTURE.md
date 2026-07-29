@@ -1,6 +1,6 @@
 # TSPDrone-RL Architecture
 
-This project solves the **Traveling Salesman Problem with Drone (TSPD)** using deep reinforcement learning (Advantage Actor–Critic / A2C). A truck and a drone cooperate to serve customers; the objective is to minimize the **makespan** (time until both vehicles finish and return).
+This project solves the **Traveling Salesman Problem with Drone (TSPD)** using deep reinforcement learning. A truck and a drone cooperate to serve customers; the objective is to minimize the **makespan**.
 
 Paper: [A Deep Reinforcement Learning Approach for Solving the Traveling Salesman Problem with Drone](https://arxiv.org/abs/2112.12545)
 
@@ -10,152 +10,57 @@ Paper: [A Deep Reinforcement Learning Approach for Solving the Traveling Salesma
 
 ```
 TSPDrone-RL/
-├── main.py                     # Thin redirect → src.experiments.run
-├── configs/
-│   ├── train.yaml              # Hydra defaults
-│   └── scale/{small,full}.yaml # Episode / batch budgets
+├── configs/train.yaml
 ├── src/
-│   ├── config.py               # pydantic RunConfig
-│   ├── constants.py            # problem / architecture literals
-│   ├── paths.py                # repo + local_db roots
-│   ├── utils.py                # seed / device helpers
-│   ├── logs.py                 # file logger
+│   ├── config.py / constants.py / paths.py / utils.py / logs.py
 │   ├── models/
-│   │   ├── actor.py            # policy network
-│   │   ├── encoder/            # graph attention static encoder
-│   │   └── layers/             # attention / conv building blocks
-│   ├── problems/
-│   │   └── tspd.py             # DataGenerator + Env (no revisits)
-│   ├── training/
-│   │   ├── trainer.py          # REINFORCE train / test / sampling
-│   │   ├── baselines.py        # greedy rollout + EMA baselines
-│   │   ├── metrics.py
-│   │   └── wandb_support.py
-│   └── experiments/
-│       └── run.py              # Hydra entrypoint
-├── data/                       # Fixed test instances
-├── trained_models/             # Legacy checkpoints (n11/, …)
-├── copied_src/                 # Reference architecture only (not imported)
-└── images/
+│   │   ├── policy.py                 # shared encoder + decoder factory
+│   │   ├── encoder/attention.py      # Kool AttentionEncoder (from compare-architectures)
+│   │   ├── decoder/
+│   │   │   ├── tspd_lstm.py          # paper LSTM + additive pointer
+│   │   │   ├── attention_model.py    # Kool AM glimpse + pointer
+│   │   │   └── lstm_pointer.py       # Vinyals LSTMCell + additive pointer
+│   │   ├── layers/                   # MHA, BN, pointer layers
+│   │   └── initialization.py
+│   ├── problems/tspd.py
+│   ├── training/                     # trainer, rollout baseline, W&B
+│   └── experiments/run.py
+└── copied_src/                       # reference only
 ```
-
-Namespace packages under `src/` intentionally have no `__init__.py`.
 
 ---
 
-## High-level data flow
+## Decoder × dynamics matrix
 
-```
-Hydra (configs/train.yaml)
-      │
-      ▼
-┌─────────────────┐     ┌──────────────┐     ┌─────────────────┐
-│  DataGenerator  │────▶│     Env      │◀────│    Trainer      │
-│  (on-the-fly)   │     │ reset/step   │     │ train/test/samp │
-└─────────────────┘     └──────────────┘     └────────┬────────┘
-                                                      │
-                          ┌───────────────────────────┼───────────────────────────┐
-                          ▼                           ▼                           ▼
-                       Actor                   Rollout baseline              Optimizer
-                   (policy π)               (frozen greedy copy)               Adam
-```
+Shared static encoder: ported Kool `AttentionEncoder` (`input_dim=2`).
 
-1. **`src.experiments.run`** parses Hydra → `RunConfig`, seeds RNGs, builds data/env/actor, optionally loads `trained_models/n{N}/`, then dispatches `action=train|test|sampling`.
-2. **`Trainer`** rolls out episodes: actor picks truck then drone destinations; `Env.step` advances simulation time.
-3. Objective is minimizing makespan (`env.current_time`). A frozen **greedy rollout** of a baseline actor copy estimates `b(x)`; advantage = `R − b` drives the policy update (EMA warmup for the first episodes).
+| Architecture name | `decoder=` | `dynamics=` |
+| --- | --- | --- |
+| `tspd_lstm_on` | `tspd_lstm` | `on` |
+| `tspd_lstm_off` | `tspd_lstm` | `off` |
+| `attention_model_on` | `attention_model` | `on` |
+| `attention_model_off` | `attention_model` | `off` |
+| `lstm_pointer_on` | `lstm_pointer` | `on` |
+| `lstm_pointer_off` | `lstm_pointer` | `off` |
 
----
-
-## Problem formulation (TSPD)
-
-| Concept | Representation |
-|--------|----------------|
-| Nodes | Customers + depot (last index = depot) |
-| Instance | Shape `[batch, n_nodes, 3]` → `(x, y, demand)` |
-| Truck | Slower (`v_t`), can serve any remaining customer |
-| Drone | Faster (`v_d`), launches/returns relative to truck (sortie logic) |
-| Action (per step) | Pair `(idx_truck, idx_drone)` — next target for each vehicle |
-| Termination | All customers served and both back at depot (or `decode_len` reached) |
-| Objective | Minimize makespan `current_time` |
-
----
-
-## Module responsibilities
-
-### `src/experiments/run.py`
-
-- Seeds NumPy / Python / PyTorch.
-- Instantiates `DataGenerator`, `Env`, `Actor`, `Critic`.
-- Loads best checkpoints if present under `trained_models/n{N}/` or the run output dir.
-- Inits W&B when enabled.
-- Dispatches train / greedy test / batch sampling.
-
-### `src/config.py` + `configs/`
-
-Validated pydantic config. Notable groups:
-
-- **Physics:** `n_nodes`, `R`, `v_t`, `v_d`, `max_w`
-- **Training:** `trainer.batch_size`, `trainer.epochs`, actor/critic LRs, `max_grad_norm`, `test_interval`
-- **Model:** `hidden_dim` (default 256), `decode_len` (floored to `round(n_nodes * 1.8)`)
-- **W&B:** `wandb.enabled`, required `wandb.name` when enabled
-
-### `src/problems/tspd.py`
-
-**`DataGenerator`** — training batches sampled on the fly; test loads or creates `data/DroneTruck-size-{test_size}-len-{n_nodes}.txt`.
-
-**`Env`** — `reset` / `step` with distance matrices, sortie/return flags, and availability masks (same logic as the former `utils/env_no_comb.py`).
-
-### `src/training/trainer.py`
-
-Sampled truck→drone→step rollout, then greedy rollout baseline on the same batch:
-`loss = mean((R − b).detach() * sum(log π))`. Periodic paired t-test may refresh the
-frozen baseline actor (lower makespan = better). EMA warmup for the first
-`baseline_warmup_episodes`.
-
-### `src/models/`
-
-```
-Static (x,y) ──▶ GraphAttentionEncoder ──▶ static_hidden
-Dynamic (time features) ──▶ Conv1d Encoder ──▶ dynamic_hidden
-                              │
-Decoder LSTM + Attention ─────┴──▶ logits over nodes ──▶ sample / greedy
-```
-
-Architecture kind is currently only `lstm_attention` (hook for future comparisons).
-
----
-
-## Runtime modes
+- **on**: travel-time features pass through a Conv1d and enter the decoder (paper fusion / AM context / LSTMCell concat).
+- **off**: dynamic branch disabled.
 
 ```bash
-# Train (local, no W&B)
 uv run python -m src.experiments.run \
-  wandb.enabled=false \
-  action=train \
-  physics.n_nodes=11 \
-  scale=small
-
-# Greedy evaluation (loads trained_models/n11 when present)
-uv run python -m src.experiments.run \
-  wandb.enabled=false \
-  action=test \
-  physics.n_nodes=11
-
-# Batch sampling
-uv run python -m src.experiments.run \
-  wandb.enabled=false \
-  action=sampling \
-  n_samples=5 \
-  physics.n_nodes=11
+  wandb.enabled=false action=train \
+  decoder=attention_model dynamics=on \
+  physics.n_nodes=11 scale=small
 ```
+
+Baseline: frozen greedy rollout of the same policy (`dynamics` and `decoder` match the train run).
+
+**Checkpoints:** the encoder port invalidates legacy `trained_models/` weights. Auto-load is only attempted for `tspd_lstm_on` and is skipped if keys do not match.
 
 ---
 
-## Artifacts
+## Training loop
 
-| Path | Contents |
-|------|----------|
-| `~/local_db/tspdrone-rl/outputs/training/.../n{N}/best_model_*_params.pkl` | Best actor/critic weights |
-| `trained_models/n{N}/` | Legacy checkpoints (still auto-loaded) |
-| `results/` | Per-instance completion times / sampling bests |
-| `~/local_db/tspdrone-rl/log/run.log` | File logger |
+1. Encode coordinates once per episode.
+2. For each decode step: truck action then drone action (masked); `Env.step` advances time.
+3. Advantage = sampled makespan − greedy-rollout baseline; REINFORCE update on Σ log π.

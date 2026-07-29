@@ -1,3 +1,7 @@
+"""Reward baselines for REINFORCE / policy-gradient training."""
+
+from __future__ import annotations
+
 import copy
 from collections.abc import Callable
 
@@ -5,10 +9,9 @@ import numpy as np
 import torch
 from scipy.stats import ttest_rel
 
-from src.models.actor import Actor
+from src.models.policy import Policy
 
-# (actor, instances) -> per-instance makespan tensor [batch]
-GreedyRolloutFn = Callable[[Actor, np.ndarray], torch.Tensor]
+GreedyRolloutFn = Callable[[Policy, np.ndarray], torch.Tensor]
 
 
 class ExponentialMakespanBaseline:
@@ -28,15 +31,15 @@ class ExponentialMakespanBaseline:
 
 
 class RolloutMakespanBaseline:
-    """Frozen greedy actor copy as a per-instance baseline (Kool et al.)."""
+    """Frozen greedy policy copy as a per-instance baseline (Kool et al.)."""
 
     def __init__(self, device: torch.device, alpha: float = 0.05) -> None:
         self.device = device
         self.alpha = alpha
-        self.baseline_actor: Actor | None = None
+        self.baseline_actor: Policy | None = None
 
-    def init_from(self, actor: Actor) -> None:
-        self.baseline_actor = copy.deepcopy(actor).to(self.device)
+    def init_from(self, policy: Policy) -> None:
+        self.baseline_actor = copy.deepcopy(policy).to(self.device)
         self.baseline_actor.eval()
         self.baseline_actor.set_sample_mode(False)
 
@@ -53,7 +56,7 @@ class RolloutMakespanBaseline:
     @torch.no_grad()
     def maybe_update(
         self,
-        actor: Actor,
+        policy: Policy,
         baseline_data: np.ndarray,
         greedy_rollout: GreedyRolloutFn,
         *,
@@ -62,19 +65,18 @@ class RolloutMakespanBaseline:
         if not warmup_done:
             return False
         if self.baseline_actor is None:
-            self.init_from(actor)
+            self.init_from(policy)
             return True
 
-        was_training = actor.training
-        actor.eval()
-        actor.set_sample_mode(False)
-        candidate = greedy_rollout(actor, baseline_data).detach().cpu()
+        was_training = policy.training
+        policy.eval()
+        policy.set_sample_mode(False)
+        candidate = greedy_rollout(policy, baseline_data).detach().cpu()
         baseline = self.evaluate(baseline_data, greedy_rollout).detach().cpu()
-        actor.train(was_training)
+        policy.train(was_training)
 
-        # Makespan: lower is better (unlike reward-maximizing NCO setups).
         _, p_value = ttest_rel(candidate.numpy(), baseline.numpy())
         if p_value < self.alpha and candidate.mean() < baseline.mean():
-            self.init_from(actor)
+            self.init_from(policy)
             return True
         return False

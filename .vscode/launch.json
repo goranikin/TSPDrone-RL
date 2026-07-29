@@ -13,6 +13,8 @@
       "args": [
         "wandb.enabled=false",
         "action=train",
+        "decoder=tspd_lstm",
+        "dynamics=on",
         "physics.n_nodes=11",
         "scale=small",
         "trainer.batch_size=32",
@@ -33,7 +35,10 @@
       "args": [
         "wandb.enabled=false",
         "action=test",
-        "physics.n_nodes=11"
+        "decoder=tspd_lstm",
+        "dynamics=on",
+        "physics.n_nodes=11",
+        "data.load_checkpoint=false"
       ]
     },
     {
@@ -48,19 +53,12 @@
       "args": [
         "wandb.enabled=false",
         "action=sampling",
+        "decoder=tspd_lstm",
+        "dynamics=on",
         "n_samples=5",
-        "physics.n_nodes=11"
+        "physics.n_nodes=11",
+        "data.load_checkpoint=false"
       ]
-    },
-    {
-      "name": "TSPD: Current File",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${file}",
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "justMyCode": true
     }
   ]
 }

@@ -21,6 +21,8 @@ def build_wandb_config(
         "run": {
             "problem": cfg.problem,
             "architecture": cfg.architecture,
+            "decoder": cfg.decoder,
+            "dynamics": cfg.dynamics,
             "mode": cfg.mode,
             "action": cfg.action,
             "seed": cfg.seed,
@@ -31,7 +33,7 @@ def build_wandb_config(
         "scale": cfg.scale.model_dump(mode="json"),
         "model": {
             **cfg.model.model_dump(mode="json"),
-            "actor_params": actor_params,
+            "policy_params": actor_params,
             "total_params": actor_params,
         },
         "trainer": cfg.trainer.model_dump(mode="json"),

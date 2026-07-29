@@ -12,7 +12,7 @@ from omegaconf import DictConfig
 
 from src.config import RunConfig, parse_config
 from src.logs import configure_file_logger
-from src.models.actor import Actor
+from src.models.policy import Policy, build_policy
 from src.paths import (
     DEFAULT_TRAINED_MODELS_DIR,
     checkpoint_dir,
@@ -44,23 +44,27 @@ def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
     test_data = data_gen.get_test_all()
     env = Env(cfg, test_data)
 
-    actor = Actor(
-        hidden_size=cfg.model.hidden_dim,
-        num_layers=cfg.model.num_layers,
-        dropout=cfg.model.dropout,
-        mask_logits=cfg.model.mask_logits,
-        use_tanh=cfg.model.use_tanh,
+    policy = build_policy(
+        decoder=cfg.decoder,
+        dynamics=cfg.dynamics,
+        hidden_dim=cfg.model.hidden_dim,
         n_heads=cfg.model.n_heads,
         n_encode_layers=cfg.model.n_encode_layers,
+        d_ff=cfg.model.d_ff,
+        dropout=cfg.model.dropout,
+        num_layers=cfg.model.num_layers,
+        use_tanh=cfg.model.use_tanh,
+        tanh_clip=cfg.model.tanh_clip,
+        mask_logits=cfg.model.mask_logits,
     ).to(device)
 
     load_dir = resolve_checkpoint_load_dir(cfg, output_dir)
     if cfg.data.load_checkpoint:
-        _maybe_load_weights(actor, load_dir, device)
+        _maybe_load_weights(policy, cfg, load_dir, device)
 
     wandb_config = wandb_support.build_wandb_config(
         cfg=cfg,
-        actor=actor,
+        actor=policy,
         output_dir=output_dir,
         resolved_device=str(device),
     )
@@ -68,12 +72,19 @@ def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
         cfg,
         output_dir=output_dir,
         run_name=cfg.wandb.name,
-        default_tags=[cfg.problem, cfg.architecture, cfg.mode, cfg.action],
+        default_tags=[
+            cfg.problem,
+            cfg.architecture,
+            cfg.decoder,
+            f"dynamics-{cfg.dynamics}",
+            cfg.mode,
+            cfg.action,
+        ],
         config=wandb_config,
     )
 
     trainer = Trainer(
-        actor=actor,
+        policy=policy,
         cfg=cfg,
         env=env,
         data_gen=data_gen,
@@ -85,6 +96,7 @@ def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
 
     summary = (
         f"run=problem={cfg.problem} architecture={cfg.architecture} "
+        f"decoder={cfg.decoder} dynamics={cfg.dynamics} "
         f"action={cfg.action} n_nodes={cfg.physics.n_nodes} "
         f"hidden_dim={cfg.model.hidden_dim} baseline=greedy_rollout "
         f"device={device} output_dir={output_dir}"
@@ -133,24 +145,44 @@ def resolve_checkpoint_load_dir(cfg: RunConfig, output_dir: str) -> Path:
     if cfg.data.checkpoint_dir is not None:
         return resolve_user_path(cfg.data.checkpoint_dir)
     legacy = DEFAULT_TRAINED_MODELS_DIR / f"n{cfg.physics.n_nodes}"
-    if (legacy / "best_model_actor_truck_params.pkl").exists():
+    if (
+        cfg.architecture == "tspd_lstm_on"
+        and (legacy / "best_model_actor_truck_params.pkl").exists()
+    ):
         return legacy
     return checkpoint_dir(output_dir, cfg.physics.n_nodes)
 
 
 def _maybe_load_weights(
-    actor: Actor,
+    policy: Policy,
+    cfg: RunConfig,
     load_dir: Path,
     device: torch.device,
 ) -> None:
-    actor_path = load_dir / "best_model_actor_truck_params.pkl"
-    if actor_path.exists():
-        actor.load_state_dict(
-            torch.load(actor_path, map_location=device, weights_only=True)
+    # Encoder port + decoder matrix invalidate legacy paper checkpoints.
+    if cfg.architecture != "tspd_lstm_on":
+        print(
+            f"Skipping checkpoint load for architecture={cfg.architecture} "
+            "(only tspd_lstm_on may attempt load)"
         )
-        print(f"Successfully loaded actor weights from {load_dir}")
-    else:
+        return
+    actor_path = load_dir / "best_model_actor_truck_params.pkl"
+    if not actor_path.exists():
         print(f"No actor checkpoint found under {load_dir}")
+        return
+    try:
+        state = torch.load(actor_path, map_location=device, weights_only=True)
+        missing, unexpected = policy.load_state_dict(state, strict=False)
+        if missing or unexpected:
+            print(
+                f"Checkpoint under {load_dir} is incompatible with the new encoder "
+                f"(missing={len(missing)} unexpected={len(unexpected)}); "
+                "starting from scratch"
+            )
+            return
+        print(f"Successfully loaded policy weights from {load_dir}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"Failed to load checkpoint from {load_dir}: {exc}; starting from scratch")
 
 
 def _jsonable(value: Any) -> Any:

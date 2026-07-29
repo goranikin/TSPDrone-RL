@@ -40,22 +40,32 @@ Training data is generated on the fly with the batch size and node numbers speci
 uv run python -m src.experiments.run \
   wandb.enabled=false \
   action=train \
+  decoder=tspd_lstm \
+  dynamics=on \
   physics.n_nodes=11 \
   scale=small
 ```
+
+Decoder × dynamics ablations (architecture name = `{decoder}_{dynamics}`):
+
+| `decoder` | `dynamics` | Name |
+| --- | --- | --- |
+| `tspd_lstm` | `on` / `off` | paper LSTM pointer |
+| `attention_model` | `on` / `off` | Kool Attention Model |
+| `lstm_pointer` | `on` / `off` | Vinyals LSTM pointer |
 
 With W&B:
 
 ```bash
 uv run python -m src.experiments.run \
   action=train \
-  wandb.name=tspd-n11-small-v1 \
+  decoder=attention_model \
+  dynamics=on \
+  wandb.name=am-on-n11-v1 \
   physics.n_nodes=11
 ```
 
-Checkpoints are written under `~/local_db/tspdrone-rl/outputs/training/`. Legacy weights in `/trained_models` are still loaded automatically when present.
-
-Pre-trained weight files for random data as described in the paper are located in the `/trained_models` directory for some sizes, `n = 11, 15, 20, 50, 100`.
+Checkpoints are written under `~/local_db/tspdrone-rl/outputs/training/`. Legacy `trained_models/` weights are incompatible with the ported Kool encoder.
 
 
 ### Evaluation
