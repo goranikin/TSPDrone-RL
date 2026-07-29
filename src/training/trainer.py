@@ -1,7 +1,5 @@
 """Policy-gradient trainer for TSP-D with greedy rollout baseline."""
 
-from __future__ import annotations
-
 import json
 import logging
 import time

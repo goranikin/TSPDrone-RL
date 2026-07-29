@@ -1,7 +1,5 @@
 """Vinyals LSTM pointer decoder adapted to one TSP-D step."""
 
-from __future__ import annotations
-
 from typing import Any
 
 import torch

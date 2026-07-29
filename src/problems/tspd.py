@@ -1,7 +1,5 @@
 """TSP-D problem: on-the-fly data generation and truck-drone environment."""
 
-from __future__ import annotations
-
 import copy
 from pathlib import Path
 

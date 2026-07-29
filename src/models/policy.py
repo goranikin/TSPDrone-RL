@@ -1,7 +1,5 @@
 """Policy factory: shared Kool encoder + selectable TSP-D decoder."""
 
-from __future__ import annotations
-
 from typing import Any
 
 import torch

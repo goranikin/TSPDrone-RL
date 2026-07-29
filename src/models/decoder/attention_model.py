@@ -1,7 +1,5 @@
 """Kool Attention Model decoder adapted to one TSP-D step."""
 
-from __future__ import annotations
-
 import math
 from typing import Any
 

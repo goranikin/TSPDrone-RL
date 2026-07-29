@@ -1,7 +1,5 @@
 """Reward baselines for REINFORCE / policy-gradient training."""
 
-from __future__ import annotations
-
 import copy
 from collections.abc import Callable
 
