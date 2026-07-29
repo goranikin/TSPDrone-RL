@@ -24,6 +24,7 @@ TSPDrone-RL/
 │   │   └── initialization.py
 │   ├── problems/tspd.py
 │   ├── training/                     # trainer, rollout baseline, W&B
+│   ├── analyze/                      # W&B fetch/process/compare/report
 │   └── experiments/run.py
 └── copied_src/                       # reference only
 ```
@@ -49,15 +50,26 @@ Shared static encoder: ported Kool `AttentionEncoder` (`input_dim=2`).
 - **off**: dynamic branch disabled.
 
 ```bash
+# Single process (Accelerate still owns device / bf16)
 uv run python -m src.experiments.run \
   wandb.enabled=false action=train \
   decoder=attention_model dynamics=on \
   physics.n_nodes=11 scale=small
+
+# Multi-GPU (effective batch = batch_size × num_processes)
+CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch --num_processes 2 --mixed_precision bf16 \
+  -m src.experiments.run \
+  wandb.enabled=false action=train \
+  decoder=attention_model dynamics=on \
+  physics.n_nodes=11 scale=small \
+  trainer.batch_size=512
 ```
+
+Trainer knobs: `trainer.mixed_precision` (`no` / `fp16` / `bf16`, default `bf16`) and `trainer.gradient_accumulation_steps`.
 
 Baseline: frozen greedy rollout of the same policy (`dynamics` and `decoder` match the train run).
 
-**Checkpoints:** the encoder port invalidates legacy `trained_models/` weights. Auto-load is only attempted for `tspd_lstm_on` and is skipped if keys do not match.
+**Checkpoints:** the encoder port invalidates legacy `trained_models/` weights. Auto-load is only attempted for `tspd_lstm_on` and is skipped if keys do not match. Multi-GPU saves the unwrapped `state_dict` on the main process only.
 
 ---
 
@@ -65,4 +77,12 @@ Baseline: frozen greedy rollout of the same policy (`dynamics` and `decoder` mat
 
 1. Encode coordinates once per episode.
 2. For each decode step: truck action then drone action (masked); `Env.step` advances time.
-3. Advantage = sampled makespan − greedy-rollout baseline; REINFORCE update on Σ log π.
+3. Advantage = sampled makespan − greedy-rollout baseline; REINFORCE update on Σ log π (via Hugging Face Accelerate: device placement, optional DDP, bf16).
+
+## Analyze W&B runs
+
+```bash
+uv run python -m src.analyze run --expected-scales small full
+```
+
+See [src/analyze/README.md](src/analyze/README.md) for coverage identity, metric mapping, and hypothesis definitions.

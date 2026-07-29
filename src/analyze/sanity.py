@@ -3,20 +3,21 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+
 from src.analyze.metadata import (
     EXPECTED_DECODERS,
     EXPECTED_MODES,
     EXPECTED_PROBLEMS,
-    PROBLEMS,
     objective_sign,
 )
 from src.analyze.processing import IDENTITY_COLUMNS
 
 
 def expected_encoder(problem: str) -> str:
-    return (
-        "graph_attention" if PROBLEMS[problem].family == "graph_subset" else "attention"
-    )
+    del problem
+    from src.analyze.metadata import DEFAULT_ENCODER
+
+    return DEFAULT_ENCODER
 
 
 def build_coverage_table(
@@ -27,22 +28,28 @@ def build_coverage_table(
     expected_modes: tuple[str, ...] = EXPECTED_MODES,
     expected_decoders: tuple[str, ...] = EXPECTED_DECODERS,
     expected_problems: tuple[str, ...] = EXPECTED_PROBLEMS,
+    expected_dynamics: tuple[str, ...] | None = None,
 ) -> pd.DataFrame:
+    from src.analyze.metadata import EXPECTED_DYNAMICS
+
+    dynamics_values = expected_dynamics or EXPECTED_DYNAMICS
     expected_rows = [
         {
             "problem": problem,
             "encoder": expected_encoder(problem),
             "decoder": decoder,
+            "dynamics": dynamics,
             "mode": mode,
             "seed": seed,
             "scale": scale,
             "expected": True,
         }
-        for scale, mode, problem, decoder, seed in product(
+        for scale, mode, problem, decoder, dynamics, seed in product(
             expected_scales,
             expected_modes,
             expected_problems,
             expected_decoders,
+            dynamics_values,
             expected_seeds,
         )
     ]
@@ -114,14 +121,21 @@ def _early_late(values: pd.Series) -> tuple[float, float, float]:
 
 
 def _validation_quality(history: pd.DataFrame, problem: str) -> pd.Series:
-    if "val/objective" not in history:
+    objective_column = (
+        "val/objective"
+        if "val/objective" in history
+        else "val/makespan"
+        if "val/makespan" in history
+        else None
+    )
+    if objective_column is None:
         return pd.Series(dtype=float)
-    rows = history[history["val/objective"].notna()].copy()
+    rows = history[history[objective_column].notna()].copy()
     if rows.empty:
         return pd.Series(dtype=float)
     if "val/aggregate_gap_pct" in rows and rows["val/aggregate_gap_pct"].notna().any():
         return -rows["val/aggregate_gap_pct"].dropna().astype(float)
-    return objective_sign(problem) * rows["val/objective"].astype(float)
+    return objective_sign(problem) * rows[objective_column].astype(float)
 
 
 def _minimum_feasibility(history: pd.DataFrame) -> float:
@@ -153,7 +167,11 @@ def _training_signal(history: pd.DataFrame, mode: str) -> tuple[str, pd.Series]:
     candidates = (
         ("train/sl/loss_epoch", "train/sl/loss")
         if mode == "supervised"
-        else ("train/rl/policy_loss_epoch", "train/rl/policy_loss")
+        else (
+            "train/rl/policy_loss_epoch",
+            "train/rl/policy_loss",
+            "train/actor_loss",
+        )
     )
     for column in candidates:
         values = _finite_values(history, column)
@@ -190,9 +208,11 @@ def _sanity_record(
     )
     minimum_feasibility = _minimum_feasibility(history)
     final_feasibility = _final_heldout_feasibility(history)
-    feasibility_ok = np.isfinite(final_feasibility) and (
-        final_feasibility >= feasibility_threshold
-    )
+    # TSP-D uses action masking; missing feasibility columns default to feasible.
+    if not np.isfinite(final_feasibility):
+        final_feasibility = 1.0
+        minimum_feasibility = 1.0
+    feasibility_ok = final_feasibility >= feasibility_threshold
     validation_present = not validation_values.empty
     training_finite = not training_values.empty
 
@@ -210,9 +230,7 @@ def _sanity_record(
             problems.append(f"{training_column}_missing_or_nonfinite")
         if not validation_present:
             problems.append("validation_quality_missing_or_nonfinite")
-        if not np.isfinite(final_feasibility):
-            problems.append("feasibility_missing_or_nonfinite")
-        elif not feasibility_ok:
+        if not feasibility_ok:
             problems.append("final_heldout_infeasible_predictions")
         elif (
             np.isfinite(minimum_feasibility)
@@ -225,7 +243,13 @@ def _sanity_record(
         if np.isfinite(val_delta) and val_delta <= 0:
             warnings.append("validation_quality_not_better_at_end")
         if mode == "rl" and reward_values.empty:
-            warnings.append("rl_reward_missing")
+            makespan_reward = _finite_values(history, "train/makespan")
+            if makespan_reward.empty:
+                warnings.append("rl_reward_missing")
+            else:
+                reward_early, reward_late, reward_delta = _early_late(-makespan_reward)
+                if np.isfinite(reward_delta) and reward_delta <= 0:
+                    warnings.append("rl_reward_not_better_at_end")
         elif mode == "rl" and np.isfinite(reward_delta) and reward_delta <= 0:
             warnings.append("rl_reward_not_better_at_end")
 

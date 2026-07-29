@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 import numpy as np
 import torch
+from accelerate import Accelerator
 from torch import optim
 from tqdm.auto import tqdm
 
@@ -33,7 +34,7 @@ class Trainer:
         cfg: RunConfig,
         env: Env,
         data_gen: DataGenerator,
-        device: torch.device,
+        accelerator: Accelerator,
         output_dir: str,
         logger: logging.Logger | None = None,
         wandb_log: bool = False,
@@ -42,49 +43,59 @@ class Trainer:
         self.cfg = cfg
         self.env = env
         self.data_gen = data_gen
-        self.device = device
+        self.accelerator = accelerator
+        self.device = accelerator.device
         self.output_dir = output_dir
         self.logger = logger
-        self.wandb_log = wandb_log
+        self.wandb_log = wandb_log and accelerator.is_main_process
         self.hidden_dim = cfg.model.hidden_dim
         self.decode_len = cfg.model.decode_len
         self.ckpt_dir = checkpoint_dir(output_dir, cfg.physics.n_nodes)
-        self.ckpt_dir.mkdir(parents=True, exist_ok=True)
+        if accelerator.is_main_process:
+            self.ckpt_dir.mkdir(parents=True, exist_ok=True)
 
         results = resolve_user_path(cfg.data.results_dir)
         if not results.is_absolute():
             results = REPOSITORY_ROOT / results
         self.results_dir = results
-        self.results_dir.mkdir(parents=True, exist_ok=True)
+        if accelerator.is_main_process:
+            self.results_dir.mkdir(parents=True, exist_ok=True)
 
         self.exp_baseline = ExponentialMakespanBaseline(cfg.trainer.exp_baseline_beta)
         self.rollout_baseline = RolloutMakespanBaseline(
-            device=device,
+            device=self.device,
             alpha=cfg.trainer.baseline_alpha,
         )
 
     @property
     def actor(self) -> Policy:
         """Alias used by rollout baseline deepcopy helpers."""
-        return self.policy
+        return self.unwrap_policy()
+
+    def unwrap_policy(self) -> Policy:
+        return self.accelerator.unwrap_model(self.policy)
 
     def train(self) -> dict[str, Any]:
-        policy = self.policy
         cfg = self.cfg
-        policy.train()
-        optimizer = optim.Adam(policy.parameters(), lr=cfg.trainer.actor_lr)
+        accelerator = self.accelerator
+        self.policy.train()
+        optimizer = optim.Adam(self.policy.parameters(), lr=cfg.trainer.actor_lr)
+        self.policy, optimizer = accelerator.prepare(self.policy, optimizer)
 
         best_model = float("inf")
         history: list[dict[str, Any]] = []
         r_test: list[float] = []
         start = time.time()
-        print(
-            f"training started architecture={cfg.architecture} "
-            f"(greedy rollout baseline)"
-        )
+        if accelerator.is_main_process:
+            print(
+                f"training started architecture={cfg.architecture} "
+                f"(greedy rollout baseline) "
+                f"processes={accelerator.num_processes} "
+                f"mixed_precision={accelerator.mixed_precision}"
+            )
 
         epoch_iter: Any = range(cfg.trainer.epochs)
-        if cfg.trainer.progress_bar:
+        if cfg.trainer.progress_bar and accelerator.is_main_process:
             epoch_iter = tqdm(epoch_iter, desc="train", total=cfg.trainer.epochs)
 
         for episode in epoch_iter:
@@ -92,26 +103,28 @@ class Trainer:
                 episode >= cfg.trainer.baseline_warmup_episodes
                 and self.rollout_baseline.baseline_actor is None
             ):
-                self.rollout_baseline.init_from(policy)
+                self.rollout_baseline.init_from(self.unwrap_policy())
 
-            data = self.data_gen.get_train_next()
-            makespan, log_sum = self._rollout(
-                policy,
-                data,
-                mode="train_sample",
-                collect_log_probs=True,
-            )
-            assert log_sum is not None
+            with accelerator.accumulate(self.policy):
+                data = self.data_gen.get_train_next()
+                makespan, log_sum = self._rollout(
+                    self.policy,
+                    data,
+                    mode="train_sample",
+                    collect_log_probs=True,
+                )
+                assert log_sum is not None
 
-            baseline = self._baseline_value(makespan, data, episode)
-            actor_loss = torch.mean((makespan - baseline).detach() * log_sum)
+                baseline = self._baseline_value(makespan, data, episode)
+                actor_loss = torch.mean((makespan - baseline).detach() * log_sum)
 
-            optimizer.zero_grad()
-            actor_loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                policy.parameters(), cfg.trainer.max_grad_norm
-            )
-            optimizer.step()
+                optimizer.zero_grad()
+                accelerator.backward(actor_loss)
+                if accelerator.sync_gradients:
+                    accelerator.clip_grad_norm_(
+                        self.policy.parameters(), cfg.trainer.max_grad_norm
+                    )
+                optimizer.step()
 
             train_makespan = float(makespan.mean().item())
             baseline_mean = float(baseline.mean().item())
@@ -125,11 +138,12 @@ class Trainer:
             }
 
             if (episode + 1) % cfg.trainer.log_every == 0 or episode == 0:
-                print(
-                    f"episode={episode + 1} makespan={train_makespan:.4f} "
-                    f"baseline={baseline_mean:.4f} "
-                    f"actor_loss={actor_loss.item():.4f} e_t={elapsed:.1f}"
-                )
+                if accelerator.is_main_process:
+                    print(
+                        f"episode={episode + 1} makespan={train_makespan:.4f} "
+                        f"baseline={baseline_mean:.4f} "
+                        f"actor_loss={actor_loss.item():.4f} e_t={elapsed:.1f}"
+                    )
                 if self.wandb_log:
                     wandb_support.log(
                         wandb_step_metrics(
@@ -143,60 +157,73 @@ class Trainer:
                     )
 
             if episode % cfg.trainer.test_interval == 0:
-                test_R = self.test()
-                r_test.append(test_R)
-                row["val_makespan"] = test_R
-                np.savetxt(self.ckpt_dir / "test_rewards.txt", r_test)
-                print(f"testing average rewards: {test_R}")
-                if self.wandb_log:
-                    wandb_support.log({"val/makespan": test_R}, step=episode + 1)
-                if test_R < best_model:
-                    best_model = test_R
-                    if cfg.trainer.save_checkpoints:
-                        self._save_checkpoint("best_model")
-                    row["best_val_makespan"] = best_model
+                test_R: float | None = None
+                if accelerator.is_main_process:
+                    test_R = self.test()
+                    r_test.append(test_R)
+                    np.savetxt(self.ckpt_dir / "test_rewards.txt", r_test)
+                    print(f"testing average rewards: {test_R}")
+                    if self.wandb_log:
+                        wandb_support.log({"val/makespan": test_R}, step=episode + 1)
+                    if test_R < best_model:
+                        best_model = test_R
+                        if cfg.trainer.save_checkpoints:
+                            self._save_checkpoint("best_model")
+                        row["best_val_makespan"] = best_model
+                    row["val_makespan"] = test_R
+                accelerator.wait_for_everyone()
 
                 updated = self.rollout_baseline.maybe_update(
-                    policy,
+                    self.unwrap_policy(),
                     self.data_gen.get_test_all(),
                     self._greedy_makespans,
                     warmup_done=episode + 1 >= cfg.trainer.baseline_warmup_episodes,
                 )
                 row["rollout_updated"] = updated
-                if updated:
+                if updated and accelerator.is_main_process:
                     print("rollout baseline updated")
 
             if (
                 cfg.trainer.save_checkpoints
                 and episode % cfg.trainer.save_interval == 0
             ):
-                self._save_checkpoint(str(episode // cfg.trainer.save_interval))
+                if accelerator.is_main_process:
+                    self._save_checkpoint(str(episode // cfg.trainer.save_interval))
+                accelerator.wait_for_everyone()
 
-            history.append(row)
-            if self.logger is not None and "val_makespan" in row:
-                self.logger.info("episode=%d metrics=%s", episode + 1, json.dumps(row))
+            if accelerator.is_main_process:
+                history.append(row)
+                if self.logger is not None and "val_makespan" in row:
+                    self.logger.info(
+                        "episode=%d metrics=%s", episode + 1, json.dumps(row)
+                    )
 
         result = {
             "history": history,
             "best_val_makespan": best_model if best_model < float("inf") else None,
             "training_time_sec": time.time() - start,
             "architecture": cfg.architecture,
+            "num_processes": accelerator.num_processes,
+            "mixed_precision": accelerator.mixed_precision,
         }
-        self._write_history(result)
-        if self.wandb_log:
-            wandb_support.update_summary(
-                {
-                    "best_val_makespan": result["best_val_makespan"],
-                    "training_time_sec": result["training_time_sec"],
-                    "architecture": cfg.architecture,
-                }
-            )
-            wandb_support.log(
-                {
-                    "train/training_time_sec": result["training_time_sec"],
-                    "train/best_val_makespan": result["best_val_makespan"],
-                }
-            )
+        if accelerator.is_main_process:
+            self._write_history(result)
+            if self.wandb_log:
+                wandb_support.update_summary(
+                    {
+                        "best_val_makespan": result["best_val_makespan"],
+                        "training_time_sec": result["training_time_sec"],
+                        "architecture": cfg.architecture,
+                        "num_processes": accelerator.num_processes,
+                    }
+                )
+                wandb_support.log(
+                    {
+                        "train/training_time_sec": result["training_time_sec"],
+                        "train/best_val_makespan": result["best_val_makespan"],
+                    }
+                )
+        accelerator.wait_for_everyone()
         return result
 
     def _baseline_value(
@@ -208,7 +235,7 @@ class Trainer:
         if episode < self.cfg.trainer.baseline_warmup_episodes:
             return self.exp_baseline.evaluate(makespan)
         if self.rollout_baseline.baseline_actor is None:
-            self.rollout_baseline.init_from(self.policy)
+            self.rollout_baseline.init_from(self.unwrap_policy())
         return self.rollout_baseline.evaluate(data, self._greedy_makespans)
 
     @torch.no_grad()
@@ -233,21 +260,23 @@ class Trainer:
         batch_size = env.batch_size
 
         was_training = policy.training
-        was_sample_mode = policy.sample_mode
+        # sample_mode lives on the unwrapped Policy
+        unwrapped = self.accelerator.unwrap_model(policy)
+        was_sample_mode = unwrapped.sample_mode
         if mode == "train_sample":
             policy.train()
-            policy.set_sample_mode(False)
+            unwrapped.set_sample_mode(False)
         elif mode == "eval_sample":
             policy.eval()
-            policy.set_sample_mode(True)
+            unwrapped.set_sample_mode(True)
         else:
             policy.eval()
-            policy.set_sample_mode(False)
+            unwrapped.set_sample_mode(False)
 
         coords = torch.from_numpy(data[:, :, :2].astype(np.float32)).to(device)
-        policy.embed(coords)
-        policy.reset_episode(batch_size)
-        prev_embed = policy.depot_embedding()
+        unwrapped.embed(coords)
+        unwrapped.reset_episode(batch_size)
+        prev_embed = unwrapped.depot_embedding()
         ter = np.zeros(batch_size, dtype=np.float32)
         time_vec_truck = np.zeros([batch_size, 2])
         time_vec_drone = np.zeros([batch_size, 3])
@@ -267,12 +296,14 @@ class Trainer:
                         dynamic = torch.from_numpy(
                             np.expand_dims(state[:, :, 0], 2).astype(np.float32)
                         ).to(device)
+                        # Call through wrapped module so DDP tracks the forward.
                         idx_truck, logp = policy(
                             prev_embed, dynamic, terminated, avail
                         )
                         free = np.where(
                             np.logical_and(
-                                avail_actions[:, :, 1].sum(axis=1) > 1, env.sortie == 0
+                                avail_actions[:, :, 1].sum(axis=1) > 1,
+                                env.sortie == 0,
                             )
                         )[0]
                         avail_actions[free, idx_truck[free].cpu(), 1] = 0
@@ -291,7 +322,7 @@ class Trainer:
                         )
                         idx = idx_drone
 
-                    prev_embed = policy.node_embedding(idx).detach()
+                    prev_embed = unwrapped.node_embedding(idx).detach()
                     if collect_log_probs:
                         logs.append(logp.unsqueeze(1))
 
@@ -306,22 +337,23 @@ class Trainer:
         makespan = torch.from_numpy(env.current_time.astype(np.float32)).to(device)
         log_sum = torch.cat(logs, dim=1).sum(dim=1) if collect_log_probs else None
         policy.train(was_training)
-        policy.set_sample_mode(was_sample_mode)
+        unwrapped.set_sample_mode(was_sample_mode)
         return makespan, log_sum
 
     def test(self) -> float:
         data = self.data_gen.get_test_all()
-        makespan = self._greedy_makespans(self.policy, data)
+        makespan = self._greedy_makespans(self.unwrap_policy(), data)
         values = makespan.detach().cpu().numpy()
-        print("finished greedy eval")
-        np.savetxt(
-            self.results_dir
-            / (
-                f"test_results-{self.cfg.scale.test_size}-len-"
-                f"{self.cfg.physics.n_nodes}.txt"
-            ),
-            values,
-        )
+        if self.accelerator.is_main_process:
+            print("finished greedy eval")
+            np.savetxt(
+                self.results_dir
+                / (
+                    f"test_results-{self.cfg.scale.test_size}-len-"
+                    f"{self.cfg.physics.n_nodes}.txt"
+                ),
+                values,
+            )
         self.policy.train()
         return makespan_metrics(values).makespan
 
@@ -333,13 +365,14 @@ class Trainer:
         best_rewards: list[float] = []
         times: list[float] = []
         initial_t = time.time()
+        policy = self.unwrap_policy()
 
         for index in range(data.shape[0]):
             repeated = np.repeat(
                 np.expand_dims(data[index], axis=0), sample_size, axis=0
             )
             makespan, _ = self._rollout(
-                self.policy,
+                policy,
                 repeated,
                 mode="eval_sample",
                 collect_log_probs=False,
@@ -347,16 +380,20 @@ class Trainer:
             best_rewards.append(float(makespan.min().item()))
             times.append(time.time() - initial_t)
 
-        np.savetxt(
-            self.results_dir / f"best_rewards_list_{sample_size}_samples.txt",
-            best_rewards,
-        )
+        if self.accelerator.is_main_process:
+            np.savetxt(
+                self.results_dir / f"best_rewards_list_{sample_size}_samples.txt",
+                best_rewards,
+            )
         self.policy.train()
         return best_rewards, times
 
     def _save_checkpoint(self, prefix: str) -> None:
+        if not self.accelerator.is_main_process:
+            return
+        state = self.unwrap_policy().state_dict()
         torch.save(
-            self.policy.state_dict(),
+            state,
             self.ckpt_dir / f"{prefix}_actor_truck_params.pkl",
         )
 

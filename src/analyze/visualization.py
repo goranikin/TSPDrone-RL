@@ -9,25 +9,17 @@ import numpy as np
 import pandas as pd
 from matplotlib.colors import ListedColormap
 from matplotlib.lines import Line2D
+
 from src.analyze.metadata import EXPECTED_DECODERS, EXPECTED_PROBLEMS, objective_sign
 
 DECODER_LABELS = {
+    "tspd_lstm": "TSP-D LSTM",
     "attention_model": "Attention",
-    "attention_model_without_glimpse": "Attention No Glimpse",
-    "lstm_pointer": "LSTM",
-    "gru_pointer": "GRU",
-    "transformer_pointer": "Transformer",
-    "sigmoid_subset": "Sigmoid",
+    "lstm_pointer": "LSTM Pointer",
 }
 
 PROBLEM_LABELS = {
-    "tsp": "TSP",
-    "cvrp": "CVRP",
-    "orienteering": "Orienteering",
-    "knapsack": "Knapsack",
-    "mis": "MIS",
-    "max_clique": "Maximum clique",
-    "vertex_cover": "Vertex cover",
+    "tspd": "TSP-D",
 }
 
 
@@ -267,9 +259,16 @@ def plot_decoder_across_problems(
 
 
 def _validation_quality_rows(frame: pd.DataFrame) -> pd.DataFrame:
-    if "val/objective" not in frame:
+    objective_column = (
+        "val/objective"
+        if "val/objective" in frame
+        else "val/makespan"
+        if "val/makespan" in frame
+        else None
+    )
+    if objective_column is None:
         return pd.DataFrame()
-    rows = frame[frame["val/objective"].notna()].copy()
+    rows = frame[frame[objective_column].notna()].copy()
     if rows.empty:
         return rows
     rows["plot_value"] = rows.apply(
@@ -277,7 +276,7 @@ def _validation_quality_rows(frame: pd.DataFrame) -> pd.DataFrame:
             -row["val/aggregate_gap_pct"]
             if "val/aggregate_gap_pct" in rows
             and pd.notna(row["val/aggregate_gap_pct"])
-            else objective_sign(str(row["problem"])) * row["val/objective"]
+            else objective_sign(str(row["problem"])) * row[objective_column]
         ),
         axis=1,
     )
@@ -332,8 +331,16 @@ def plot_learning_curves(
             )
             train_label = "Supervised loss\n(lower is better)"
         else:
-            train_column = "train/rl/reward"
-            train_label = "Training reward\n(higher is better)"
+            train_column = (
+                "train/rl/reward"
+                if "train/rl/reward" in frame and frame["train/rl/reward"].notna().any()
+                else "train/makespan"
+            )
+            train_label = (
+                "Training reward\n(higher is better)"
+                if train_column == "train/rl/reward"
+                else "Training makespan\n(lower is better)"
+            )
         if train_column not in frame:
             continue
         validation = _validation_quality_rows(frame)

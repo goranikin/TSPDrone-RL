@@ -7,17 +7,17 @@ from src.analyze.fetch import fetch_project
 from src.analyze.metadata import (
     DEFAULT_EXPECTED_SEEDS,
     EXPECTED_DECODERS,
+    EXPECTED_DYNAMICS,
     EXPECTED_MODES,
     EXPECTED_PROBLEMS,
 )
 from src.analyze.pipeline import AnalysisConfig, run_analysis
-
 from src.paths import DOCS_ROOT, WANDB_ANALYSIS_ROOT, resolve_user_path
 
 DEFAULT_ENTITY = "goranikin-my-project"
-DEFAULT_PROJECT = "compare-architectures"
+DEFAULT_PROJECT = "tspdrone-rl"
 DEFAULT_ROOT = WANDB_ANALYSIS_ROOT
-DEFAULT_REPORT = DOCS_ROOT / "W&B Architecture Comparison Analysis.md"
+DEFAULT_REPORT = DOCS_ROOT / "W&B TSP-D Decoder Analysis.md"
 
 
 def _filters(value: str | None) -> dict[str, Any] | None:
@@ -64,6 +64,13 @@ def _add_analysis_arguments(parser: argparse.ArgumentParser) -> None:
         help="Training modes whose complete matrix should be present",
     )
     parser.add_argument(
+        "--expected-dynamics",
+        nargs="+",
+        choices=EXPECTED_DYNAMICS,
+        default=list(EXPECTED_DYNAMICS),
+        help="Dynamics settings whose complete matrix should be present",
+    )
+    parser.add_argument(
         "--exclude-decoders",
         nargs="+",
         choices=EXPECTED_DECODERS,
@@ -83,7 +90,7 @@ def _add_analysis_arguments(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Fetch and analyze compare-architectures W&B runs"
+        description="Fetch and analyze TSPDrone-RL W&B runs"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -116,6 +123,7 @@ def _analysis_config(arguments: argparse.Namespace, input_dir: Path) -> Analysis
         expected_scales=tuple(arguments.expected_scales),
         expected_seeds=tuple(arguments.expected_seeds),
         expected_modes=tuple(arguments.expected_modes),
+        expected_dynamics=tuple(arguments.expected_dynamics),
         excluded_decoders=tuple(arguments.exclude_decoders),
         excluded_problems=tuple(arguments.exclude_problems),
         feasibility_threshold=arguments.feasibility_threshold,

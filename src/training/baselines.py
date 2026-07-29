@@ -37,6 +37,7 @@ class RolloutMakespanBaseline:
         self.baseline_actor: Policy | None = None
 
     def init_from(self, policy: Policy) -> None:
+        """``policy`` must be an unwrapped ``Policy`` (not DDP)."""
         self.baseline_actor = copy.deepcopy(policy).to(self.device)
         self.baseline_actor.eval()
         self.baseline_actor.set_sample_mode(False)
@@ -60,6 +61,7 @@ class RolloutMakespanBaseline:
         *,
         warmup_done: bool,
     ) -> bool:
+        """``policy`` must be an unwrapped ``Policy`` (not DDP)."""
         if not warmup_done:
             return False
         if self.baseline_actor is None:

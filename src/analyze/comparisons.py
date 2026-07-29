@@ -5,6 +5,7 @@ from typing import Any, cast
 import numpy as np
 import pandas as pd
 from scipy import stats
+
 from src.analyze.metadata import DECODERS, PROBLEMS, hypothesis_decoders
 from src.analyze.processing import COMPARISON_CONTEXT_COLUMNS
 
@@ -18,6 +19,7 @@ def decoder_by_problem(final_metrics: pd.DataFrame) -> pd.DataFrame:
         "mode",
         *COMPARISON_CONTEXT_COLUMNS,
         "problem",
+        "dynamics",
         "decoder",
     ]
     return (
@@ -46,7 +48,7 @@ def decoder_across_problems(by_problem: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
     # Each problem receives equal weight after seed-level aggregation. This prevents
     # problems with extra runs from dominating the architecture-level conclusion.
-    group = ["scale", "mode", *COMPARISON_CONTEXT_COLUMNS, "decoder"]
+    group = ["scale", "mode", *COMPARISON_CONTEXT_COLUMNS, "dynamics", "decoder"]
     return (
         by_problem.groupby(group, dropna=False)
         .agg(
@@ -77,10 +79,23 @@ def _holm_adjust(p_values: pd.Series) -> pd.Series:
 def pairwise_decoder_comparisons(final_metrics: pd.DataFrame) -> pd.DataFrame:
     valid = final_metrics[final_metrics["quality_value"].notna()].copy()
     records: list[dict[str, Any]] = []
-    group_columns = ["scale", "mode", *COMPARISON_CONTEXT_COLUMNS, "problem"]
+    group_columns = [
+        "scale",
+        "mode",
+        *COMPARISON_CONTEXT_COLUMNS,
+        "problem",
+        "dynamics",
+    ]
     match_columns = ["seed", "encoder"]
     for group_values, frame in valid.groupby(group_columns, dropna=False):
-        scale, mode, comparison_regime, comparison_condition, problem = group_values
+        (
+            scale,
+            mode,
+            comparison_regime,
+            comparison_condition,
+            problem,
+            dynamics,
+        ) = group_values
         for decoder_a, decoder_b in combinations(sorted(frame["decoder"].unique()), 2):
             left = frame[frame["decoder"] == decoder_a][
                 [*match_columns, "quality_value"]
@@ -104,6 +119,7 @@ def pairwise_decoder_comparisons(final_metrics: pd.DataFrame) -> pd.DataFrame:
                     "comparison_regime": comparison_regime,
                     "comparison_condition": comparison_condition,
                     "problem": problem,
+                    "dynamics": dynamics,
                     "decoder_a": decoder_a,
                     "decoder_b": decoder_b,
                     "paired_seeds": len(difference),
@@ -139,6 +155,7 @@ def _standardize_hypothesis_cells(final_metrics: pd.DataFrame) -> pd.DataFrame:
         "scale",
         "seed",
         "encoder",
+        "dynamics",
         *COMPARISON_CONTEXT_COLUMNS,
     ]
     required = len(hypothesis_decoders())
@@ -172,6 +189,7 @@ def hypothesis_problem_contrasts(final_metrics: pd.DataFrame) -> pd.DataFrame:
         "scale",
         "seed",
         "encoder",
+        "dynamics",
         *COMPARISON_CONTEXT_COLUMNS,
     ]
     family_scores = (
@@ -196,6 +214,7 @@ def hypothesis_problem_contrasts(final_metrics: pd.DataFrame) -> pd.DataFrame:
                 "mode",
                 *COMPARISON_CONTEXT_COLUMNS,
                 "problem",
+                "dynamics",
                 "solution_scope",
                 "problem_family",
             ],
@@ -214,6 +233,7 @@ def hypothesis_problem_contrasts(final_metrics: pd.DataFrame) -> pd.DataFrame:
                 *COMPARISON_CONTEXT_COLUMNS,
                 "solution_scope",
                 "problem",
+                "dynamics",
             ]
         )
     )

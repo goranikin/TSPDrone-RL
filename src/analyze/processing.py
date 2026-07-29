@@ -5,13 +5,20 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from src.analyze.metadata import DECODERS, PROBLEMS, objective_sign
+
+from src.analyze.metadata import (
+    DECODERS,
+    DEFAULT_ENCODER,
+    PROBLEMS,
+    objective_sign,
+)
 from src.analyze.records import ExportBundle, ProcessedData
 
 IDENTITY_COLUMNS: tuple[str, ...] = (
     "problem",
     "encoder",
     "decoder",
+    "dynamics",
     "mode",
     "seed",
     "scale",
@@ -52,61 +59,41 @@ def stable_gap_percent(problem: str, objective: Any, target: Any) -> float:
 
 
 def _comparison_context(config: Mapping[str, Any]) -> tuple[str, str]:
-    budget_enabled = nested_value(config, "parameter_budget.enabled")
-    regime = (
-        "matched_total_params"
-        if budget_enabled is True
-        else "fixed_encoder"
-        if budget_enabled is False
-        else "legacy_unknown"
-    )
-    model_fields = {
-        key: nested_value(config, f"model.{key}")
-        for key in (
-            "num_layers",
-            "num_heads",
-            "transformer_pointer_layers",
-            "dropout",
-            "tanh_clip",
-        )
-    }
-    if budget_enabled is not True:
-        model_fields.update(
-            {
-                "d_model": nested_value(config, "model.d_model"),
-                "d_ff": nested_value(config, "model.d_ff"),
-            }
-        )
+    regime = "tspd_decoder_matrix"
     condition_payload = {
         "regime": regime,
-        "data": {
-            key: nested_value(config, f"data.{key}")
+        "physics": nested_value(config, "physics", {}),
+        "scale": {
+            "name": nested_value(config, "scale.name"),
+            "batch_size": nested_value(config, "scale.batch_size"),
+            "epochs": nested_value(config, "scale.epochs"),
+            "test_size": nested_value(config, "scale.test_size"),
+        },
+        "model": {
+            key: nested_value(config, f"model.{key}")
             for key in (
-                "scale",
-                "dataset_size",
-                "train_instances",
-                "validation_instances",
-                "test_instances",
-                "planned_updates",
-                "planned_presentations",
-                "train_data_policy",
-                "batch_size",
-                "eval_batch_size",
-                "shuffle",
+                "hidden_dim",
+                "num_layers",
+                "n_heads",
+                "n_encode_layers",
+                "d_ff",
+                "dropout",
+                "tanh_clip",
+                "decode_len",
             )
         },
-        "model": model_fields,
-        "trainer": nested_value(config, "trainer", {}),
-        "parameter_budget": (
-            {
-                "target_params_override": nested_value(
-                    config, "parameter_budget.target_params_override"
-                ),
-                "search": nested_value(config, "parameter_budget.search"),
-            }
-            if budget_enabled is True
-            else {"enabled": budget_enabled}
-        ),
+        "trainer": {
+            key: nested_value(config, f"trainer.{key}")
+            for key in (
+                "batch_size",
+                "epochs",
+                "actor_lr",
+                "max_grad_norm",
+                "baseline_alpha",
+                "mixed_precision",
+            )
+        },
+        "baseline": nested_value(config, "baseline"),
         "code_fingerprint": nested_value(config, "provenance.code_fingerprint"),
     }
     canonical = json.dumps(
@@ -134,6 +121,16 @@ def _run_record(metadata: Mapping[str, Any]) -> dict[str, Any]:
     if config_fingerprint is None:
         canonical = json.dumps(config, sort_keys=True, separators=(",", ":"), default=str)
         config_fingerprint = f"legacy-{hashlib.sha256(canonical.encode()).hexdigest()}"
+    encoder = nested_value(config, "run.encoder") or DEFAULT_ENCODER
+    scale = nested_value(config, "scale.name")
+    if scale is None:
+        scale = nested_value(config, "data.scale")
+    trainable_params = nested_value(config, "model.total_params")
+    if trainable_params is None:
+        trainable_params = nested_value(config, "model.policy_params")
+    best_val = summary.get("train/best_val_makespan")
+    if best_val is None:
+        best_val = summary.get("train/best_validation_objective")
     record = {
         "run_id": str(metadata.get("run_id", "")),
         "name": metadata.get("name"),
@@ -143,35 +140,31 @@ def _run_record(metadata: Mapping[str, Any]) -> dict[str, Any]:
         "group": metadata.get("group"),
         "tags": ",".join(str(tag) for tag in metadata.get("tags", [])),
         "problem": problem,
-        "encoder": nested_value(config, "run.encoder"),
+        "encoder": encoder,
         "decoder": decoder,
+        "dynamics": nested_value(config, "run.dynamics"),
+        "architecture": nested_value(config, "run.architecture"),
         "mode": nested_value(config, "run.mode"),
         "seed": nested_value(config, "run.seed"),
-        "scale": nested_value(config, "data.scale"),
+        "scale": scale,
         "comparison_regime": comparison_regime,
         "comparison_condition": comparison_condition,
         "config_fingerprint": config_fingerprint,
         "code_fingerprint": nested_value(config, "provenance.code_fingerprint"),
         "git_commit": nested_value(config, "provenance.git_commit"),
         "git_dirty": nested_value(config, "provenance.git_dirty"),
-        "reference_kind": nested_value(
-            config, "data.provenance.validation.reference_kind"
-        ),
+        "reference_kind": None,
         "expected_epochs": nested_value(config, "trainer.epochs"),
-        "steps_per_epoch": nested_value(config, "trainer.steps_per_epoch"),
-        "planned_updates": nested_value(config, "data.planned_updates"),
-        "train_instances": nested_value(config, "data.train_instances"),
-        "validation_instances": nested_value(config, "data.validation_instances"),
-        "test_instances": nested_value(config, "data.test_instances"),
-        "trainable_params": nested_value(config, "model.trainable_params"),
+        "steps_per_epoch": 1,
+        "planned_updates": nested_value(config, "trainer.epochs"),
+        "train_instances": nested_value(config, "trainer.batch_size"),
+        "validation_instances": nested_value(config, "scale.test_size"),
+        "test_instances": nested_value(config, "scale.test_size"),
+        "trainable_params": trainable_params,
         "training_time_sec": summary.get("train/training_time_sec"),
-        "summary_best_validation_objective": summary.get(
-            "train/best_validation_objective"
-        ),
-        "summary_best_validation_feasibility_rate": summary.get(
-            "train/best_validation_feasibility_rate"
-        ),
-        "summary_best_validation_score": summary.get("train/best_validation_score"),
+        "summary_best_validation_objective": best_val,
+        "summary_best_validation_feasibility_rate": 1.0,
+        "summary_best_validation_score": best_val,
     }
     record["objective_sense"] = (
         PROBLEMS[str(problem)].objective_sense if problem in PROBLEMS else None
@@ -320,7 +313,32 @@ def build_history_table(
         analysis_epoch = pd.Series(np.nan, index=history.index)
     if "train/epoch" in history:
         analysis_epoch = analysis_epoch.fillna(history["train/epoch"])
+    if "train/episode" in history:
+        analysis_epoch = analysis_epoch.fillna(history["train/episode"])
     history["analysis_epoch"] = analysis_epoch
+
+    # Normalize TSP-D W&B keys onto the shared analysis schema.
+    if "val/makespan" in history and "val/objective" not in history:
+        history["val/objective"] = history["val/makespan"]
+    if "test/makespan" in history and "test/objective" not in history:
+        history["test/objective"] = history["test/makespan"]
+    if "train/makespan" in history:
+        if "train/rl/reward" not in history:
+            history["train/rl/reward"] = -history["train/makespan"]
+        if "train/rl/eval/objective" not in history:
+            history["train/rl/eval/objective"] = history["train/makespan"]
+    if "train/actor_loss" in history:
+        if "train/rl/policy_loss" not in history:
+            history["train/rl/policy_loss"] = history["train/actor_loss"]
+        if "train/rl/policy_loss_epoch" not in history:
+            history["train/rl/policy_loss_epoch"] = history["train/actor_loss"]
+    for prefix in ("val", "test", "train/rl/eval"):
+        feasibility_column = f"{prefix}/feasibility_rate"
+        objective_column = f"{prefix}/objective"
+        if objective_column in history and feasibility_column not in history:
+            history[feasibility_column] = np.where(
+                history[objective_column].notna(), 1.0, np.nan
+            )
 
     for prefix in (
         "train/sl",
@@ -444,6 +462,7 @@ def add_within_problem_scores(metrics: pd.DataFrame) -> pd.DataFrame:
         "scale",
         "seed",
         "encoder",
+        "dynamics",
         *COMPARISON_CONTEXT_COLUMNS,
     ]
     valid = result["quality_value"].notna()

@@ -2,7 +2,9 @@ from pathlib import Path
 
 LOCAL_DB_ROOT = Path.home() / "local_db" / "tspdrone-rl"
 LOCAL_OUTPUT_ROOT = LOCAL_DB_ROOT / "outputs"
+WANDB_ANALYSIS_ROOT = LOCAL_OUTPUT_ROOT / "wandb_analysis"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+DOCS_ROOT = REPOSITORY_ROOT / "docs"
 DEFAULT_DATA_DIR = REPOSITORY_ROOT / "data"
 DEFAULT_TRAINED_MODELS_DIR = REPOSITORY_ROOT / "trained_models"
 DEFAULT_RESULTS_DIR = REPOSITORY_ROOT / "results"

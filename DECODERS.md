@@ -56,7 +56,7 @@ This is the decoder from the TSP-D RL paper: an LSTM consumes the previous node 
 
 1. `prev_embed` → `nn.LSTM` → query `q` from the top-layer hidden state.
 2. Static keys: `node_embeddings` reshaped to `[B, H, N]`.
-3. Additive energy: \(u_i = v^\top \tanh(W_\text{ref}\, e_i + W_q\, q [+ W_d\, d_i])\).
+3. Additive energy: \(u_i = v^\top \tanh(W_\text{ref}\, e_i + W_q\, q \[+ W_d\, d_i\])\).
 4. Optional `use_tanh` clips logits with \(C\tanh(u)\).
 
 **Why it exists:** baseline matching the published TSP-D architecture (recurrent decode + paper-style dynamic fusion inside the pointer).

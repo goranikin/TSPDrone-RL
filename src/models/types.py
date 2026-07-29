@@ -1,7 +1,7 @@
 """Shared model tensor containers."""
 
-from pydantic import BaseModel, ConfigDict
 import torch
+from pydantic import BaseModel, ConfigDict
 
 
 class EncoderOutput(BaseModel):

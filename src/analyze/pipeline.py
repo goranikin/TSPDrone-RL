@@ -13,6 +13,7 @@ from src.analyze.loader import load_export
 from src.analyze.metadata import (
     DEFAULT_EXPECTED_SEEDS,
     EXPECTED_DECODERS,
+    EXPECTED_DYNAMICS,
     EXPECTED_MODES,
     EXPECTED_PROBLEMS,
 )
@@ -26,7 +27,6 @@ from src.analyze.results import (
 )
 from src.analyze.sanity import build_coverage_table, build_sanity_table
 from src.analyze.visualization import create_all_figures
-
 from src.paths import DOCS_ROOT, WANDB_ANALYSIS_ROOT, resolve_user_path
 
 
@@ -34,10 +34,11 @@ from src.paths import DOCS_ROOT, WANDB_ANALYSIS_ROOT, resolve_user_path
 class AnalysisConfig:
     input_dir: Path = WANDB_ANALYSIS_ROOT / "raw"
     output_dir: Path = WANDB_ANALYSIS_ROOT / "results"
-    report_path: Path = DOCS_ROOT / "W&B Architecture Comparison Analysis.md"
+    report_path: Path = DOCS_ROOT / "W&B TSP-D Decoder Analysis.md"
     expected_scales: tuple[str, ...] = ("small",)
     expected_seeds: tuple[int, ...] = DEFAULT_EXPECTED_SEEDS
     expected_modes: tuple[str, ...] = EXPECTED_MODES
+    expected_dynamics: tuple[str, ...] = EXPECTED_DYNAMICS
     excluded_decoders: tuple[str, ...] = ()
     excluded_problems: tuple[str, ...] = ()
     feasibility_threshold: float = 1.0 - 1e-6
@@ -90,6 +91,9 @@ def run_analysis(config: AnalysisConfig) -> dict[str, Any]:
     )
     if not included_problems:
         raise ValueError("At least one problem must remain in the analysis")
+    unknown_dynamics = set(config.expected_dynamics) - set(EXPECTED_DYNAMICS)
+    if unknown_dynamics:
+        raise ValueError(f"Unknown expected dynamics: {sorted(unknown_dynamics)}")
 
     bundle = load_export(resolve_user_path(config.input_dir))
     processed = _apply_scope_exclusions(
@@ -104,6 +108,7 @@ def run_analysis(config: AnalysisConfig) -> dict[str, Any]:
         expected_modes=config.expected_modes,
         expected_decoders=included_decoders,
         expected_problems=included_problems,
+        expected_dynamics=config.expected_dynamics,
     )
     sanity = build_sanity_table(
         processed.selected_runs,

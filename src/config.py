@@ -80,6 +80,8 @@ class TrainerConfig(StrictModel):
     baseline_alpha: Probability = 0.05
     baseline_warmup_episodes: NonNegativeInt = 1
     exp_baseline_beta: Probability = 0.8
+    mixed_precision: Literal["no", "fp16", "bf16"] = "bf16"
+    gradient_accumulation_steps: PositiveInt = 1
 
 
 class WandbConfig(StrictModel):

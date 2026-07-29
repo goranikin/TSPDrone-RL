@@ -6,6 +6,7 @@ type DynamicsMode = Literal["on", "off"]
 type TrainingMode = Literal["rl"]
 type RunAction = Literal["train", "test", "sampling"]
 
+PROBLEM_NAMES: tuple[ProblemName, ...] = ("tspd",)
 DECODER_KINDS: tuple[DecoderKind, ...] = (
     "tspd_lstm",
     "attention_model",

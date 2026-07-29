@@ -54,6 +54,8 @@ trainer:
   baseline_alpha: 0.05
   baseline_warmup_episodes: 1
   exp_baseline_beta: 0.8
+  mixed_precision: bf16
+  gradient_accumulation_steps: 1
 
 n_samples: ${scale.n_samples}
 
