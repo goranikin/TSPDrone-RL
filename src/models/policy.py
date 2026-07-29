@@ -1,5 +1,6 @@
 """Policy factory: shared Kool encoder + selectable TSP-D decoder."""
 
+import copy
 from typing import Any
 
 import torch
@@ -104,6 +105,24 @@ class Policy(nn.Module):
 
     def set_sample_mode(self, value: bool) -> None:
         self.sample_mode = value
+
+    def clear_episode_state(self) -> None:
+        """Drop cached encoder/decoder tensors (not part of learnable weights)."""
+        self._encoder_output = None
+        self._decoder_state = None
+
+    def clone_weights(self) -> "Policy":
+        """Deep-copy learnable weights without episode caches (safe under autograd)."""
+        encoder_out = self._encoder_output
+        decoder_state = self._decoder_state
+        self.clear_episode_state()
+        try:
+            clone = copy.deepcopy(self)
+        finally:
+            self._encoder_output = encoder_out
+            self._decoder_state = decoder_state
+        clone.clear_episode_state()
+        return clone
 
 
 def build_decoder(

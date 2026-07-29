@@ -27,7 +27,15 @@ If OOM, halve. If VRAM is idle and step/sec still rises, try doubling.
 
 ```bash
 cd ~/path/to/TSPDrone-RL   # repo root on the remote host
+
+# Torch 2.13 Triton kernels need a host C compiler (gcc/clang).
+# Without this, backward crashes with: Failed to find C compiler.
+sudo apt-get update && sudo apt-get install -y build-essential
+
 uv sync
+uv run python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"
+# expect: 2.13.0+cu126 12.6 True   (cu130 needs a newer driver than 12.8)
+
 nvidia-smi                 # confirm both 4090s are free
 ```
 

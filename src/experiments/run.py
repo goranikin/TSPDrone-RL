@@ -85,7 +85,7 @@ def resolve_model_dimensions(cfg: RunConfig) -> MatchedDimensions:
 def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
     cfg = parse_config(RunConfig, raw_cfg)
     _require_cuda()
-    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=False)
     accelerator = Accelerator(
         mixed_precision=cfg.trainer.mixed_precision,
         gradient_accumulation_steps=cfg.trainer.gradient_accumulation_steps,

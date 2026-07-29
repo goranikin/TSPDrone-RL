@@ -1,6 +1,5 @@
 """Reward baselines for REINFORCE / policy-gradient training."""
 
-import copy
 from collections.abc import Callable
 
 import numpy as np
@@ -38,7 +37,13 @@ class RolloutMakespanBaseline:
 
     def init_from(self, policy: Policy) -> None:
         """``policy`` must be an unwrapped ``Policy`` (not DDP)."""
-        self.baseline_actor = copy.deepcopy(policy).to(self.device)
+        if self.baseline_actor is None:
+            # deepcopy of modules with cached non-leaf episode tensors fails.
+            self.baseline_actor = policy.clone_weights().to(self.device)
+        else:
+            self.baseline_actor.load_state_dict(policy.state_dict())
+            self.baseline_actor.clear_episode_state()
+            self.baseline_actor.to(self.device)
         self.baseline_actor.eval()
         self.baseline_actor.set_sample_mode(False)
 
