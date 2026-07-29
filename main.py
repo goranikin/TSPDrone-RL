@@ -22,7 +22,8 @@ if __name__ == "__main__":
     save_path = args["save_path"]
     n_nodes = args["n_nodes"]
     dataGen = DataGenerator(args)
-    data = dataGen.get_train_next()
+    # Meaningless assignment
+    # data = dataGen.get_train_next()
     data = dataGen.get_test_all()
     env = Env(args, data)
     actor = Actor(args["hidden_dim"])

@@ -1,0 +1,64 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "TSPD: Train",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "justMyCode": true,
+      "args": [
+        "--train=True",
+        "--n_nodes=11",
+        "--batch_size=32",
+        "--n_train=100",
+        "--test_interval=50",
+        "--save_interval=50"
+      ]
+    },
+    {
+      "name": "TSPD: Eval (Greedy)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "justMyCode": true,
+      "args": [
+        "--train=False",
+        "--sampling=False",
+        "--n_nodes=11"
+      ]
+    },
+    {
+      "name": "TSPD: Eval (Sampling)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "justMyCode": true,
+      "args": [
+        "--train=False",
+        "--sampling=True",
+        "--n_samples=5",
+        "--n_nodes=11"
+      ]
+    },
+    {
+      "name": "TSPD: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "justMyCode": true
+    }
+  ]
+}

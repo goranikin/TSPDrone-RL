@@ -50,16 +50,15 @@ class DataGenerator:
     def get_train_next(self):
 
         args = self.args
-        input_pnt = np.random.uniform(
-            1, 100, size=(args["test_size"], args["n_nodes"] - 1, 2)
-        )
+        batch_size = args["batch_size"]
+        input_pnt = np.random.uniform(1, 100, size=(batch_size, args["n_nodes"] - 1, 2))
         input_pnt = np.concatenate(
-            [input_pnt, np.random.uniform(0, 1, size=(args["test_size"], 1, 2))], axis=1
+            [input_pnt, np.random.uniform(0, 1, size=(batch_size, 1, 2))], axis=1
         )
 
-        demand = np.ones([args["batch_size"], args["n_nodes"] - 1, 1])
+        demand = np.ones([batch_size, args["n_nodes"] - 1, 1])
 
-        network = np.concatenate([demand, np.zeros([args["batch_size"], 1, 1])], 1)
+        network = np.concatenate([demand, np.zeros([batch_size, 1, 1])], 1)
         input_data = np.concatenate([input_pnt, network], 2)
 
         return input_data
