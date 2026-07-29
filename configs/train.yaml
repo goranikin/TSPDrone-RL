@@ -1,0 +1,69 @@
+defaults:
+  - scale: small
+  - override hydra/job_logging: disabled
+  - _self_
+
+seed: 5
+device: auto
+problem: tspd
+architecture: lstm_attention
+mode: rl
+action: train
+
+physics:
+  n_nodes: 11
+  R: 150
+  v_t: 1.0
+  v_d: 2.0
+  max_w: 2.5
+
+data:
+  data_dir: data
+  results_dir: results
+  root: ${oc.env:HOME}/local_db/tspdrone-rl
+  load_checkpoint: true
+  checkpoint_dir: null
+
+paths:
+  output_root: ${oc.env:HOME}/local_db/tspdrone-rl/outputs/training
+  output_dir: null
+
+model:
+  hidden_dim: 256
+  num_layers: 1
+  dropout: 0.1
+  mask_logits: true
+  use_tanh: false
+  n_heads: 8
+  n_encode_layers: 3
+  decode_len: 30
+
+trainer:
+  batch_size: ${scale.batch_size}
+  epochs: ${scale.epochs}
+  actor_lr: 1.0e-4
+  critic_lr: 1.0e-4
+  max_grad_norm: 2.0
+  test_interval: ${scale.test_interval}
+  save_interval: ${scale.save_interval}
+  progress_bar: true
+  save_checkpoints: true
+  log_every: 25
+
+n_samples: ${scale.n_samples}
+
+wandb:
+  enabled: true
+  project: tspdrone-rl
+  entity: goranikin-my-project
+  name: null
+  group: null
+  tags: []
+  mode: online
+
+hydra:
+  job:
+    chdir: false
+  run:
+    dir: .
+  output_subdir: null

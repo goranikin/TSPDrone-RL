@@ -1,0 +1,7 @@
+name: full
+batch_size: 100
+epochs: 1000000
+test_interval: 200
+save_interval: 1000
+test_size: 100
+n_samples: 5

@@ -5,49 +5,51 @@
       "name": "TSPD: Train",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/main.py",
+      "module": "src.experiments.run",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "justMyCode": true,
       "args": [
-        "--train=True",
-        "--n_nodes=11",
-        "--batch_size=32",
-        "--n_train=100",
-        "--test_interval=50",
-        "--save_interval=50"
+        "wandb.enabled=false",
+        "action=train",
+        "physics.n_nodes=11",
+        "scale=small",
+        "trainer.batch_size=32",
+        "trainer.epochs=100",
+        "trainer.test_interval=50",
+        "trainer.save_interval=50"
       ]
     },
     {
       "name": "TSPD: Eval (Greedy)",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/main.py",
+      "module": "src.experiments.run",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "justMyCode": true,
       "args": [
-        "--train=False",
-        "--sampling=False",
-        "--n_nodes=11"
+        "wandb.enabled=false",
+        "action=test",
+        "physics.n_nodes=11"
       ]
     },
     {
       "name": "TSPD: Eval (Sampling)",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/main.py",
+      "module": "src.experiments.run",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "justMyCode": true,
       "args": [
-        "--train=False",
-        "--sampling=True",
-        "--n_samples=5",
-        "--n_nodes=11"
+        "wandb.enabled=false",
+        "action=sampling",
+        "n_samples=5",
+        "physics.n_nodes=11"
       ]
     },
     {

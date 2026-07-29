@@ -17,38 +17,67 @@ For the optimization heuristic algorithms used in the paper, please see [TSPDron
 
 ## Dependencies
 
-* Python>=3.8
+* Python>=3.13
 * NumPy
 * SciPy
-* [PyTorch](http://pytorch.org/)>=1.7
+* [PyTorch](http://pytorch.org/)
+* Hydra / OmegaConf / pydantic / tqdm / wandb
+
+```bash
+uv sync
+```
 
 
 ## Usage
 
 ### Generating data
 
-Training data is generated on the fly with the batch size and node numbers specified in `/utils/options.py`. If test data is not given in the data folder, the test data will be generated randomly as well.
+Training data is generated on the fly with the batch size and node numbers specified in `configs/train.yaml` (and `configs/scale/`). If test data is not given in the data folder, the test data will be generated randomly as well.
 
 ### Training
 
-For training TSPD, just run the following line. Any other training parameters can also be set in `/utils/options.py` such as the number of nodes, batch size, the number of epochs, decode lengths, etc. 
 ```bash
-python main.py --train=True
+uv run python -m src.experiments.run \
+  wandb.enabled=false \
+  action=train \
+  physics.n_nodes=11 \
+  scale=small
 ```
-The trained weight files will be saved in the `/trained_models` directory.
 
-Pre-trained weights files for random data as described in the paper are located in the `/trained_models` directory for some sizes, `n = 11, 15, 20, 50, 100`.
+With W&B:
+
+```bash
+uv run python -m src.experiments.run \
+  action=train \
+  wandb.name=tspd-n11-small-v1 \
+  physics.n_nodes=11
+```
+
+Checkpoints are written under `~/local_db/tspdrone-rl/outputs/training/`. Legacy weights in `/trained_models` are still loaded automatically when present.
+
+Pre-trained weight files for random data as described in the paper are located in the `/trained_models` directory for some sizes, `n = 11, 15, 20, 50, 100`.
 
 
 ### Evaluation
- To perform only inference, please set `train` to `False` in `/utils/options.py` or just run:
+
 ```bash
-python main.py --train=False
+uv run python -m src.experiments.run \
+  wandb.enabled=false \
+  action=test \
+  physics.n_nodes=11
 ```
-By default, the greedy decoding will run. 
+
+By default, the greedy decoding will run.
 
 ### Sampling
-To run batch sampling, please set `sampling` to `True` and specify the number of samples `n_samples` in `/utils/options.py`. 
+
+```bash
+uv run python -m src.experiments.run \
+  wandb.enabled=false \
+  action=sampling \
+  n_samples=5 \
+  physics.n_nodes=11
+```
 
 The results of both greedy and batch sampling decoding will be stored in the `results` folder. 
 
