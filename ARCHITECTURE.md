@@ -32,6 +32,8 @@ TSPDrone-RL/
 
 ## Decoder × dynamics matrix
 
+Detailed write-up of the three decoders and the dynamics hook: [DECODERS.md](DECODERS.md).
+
 Shared static encoder: ported Kool `AttentionEncoder` (`input_dim=2`).
 
 | Architecture name | `decoder=` | `dynamics=` |
@@ -43,7 +45,7 @@ Shared static encoder: ported Kool `AttentionEncoder` (`input_dim=2`).
 | `lstm_pointer_on` | `lstm_pointer` | `on` |
 | `lstm_pointer_off` | `lstm_pointer` | `off` |
 
-- **on**: travel-time features pass through a Conv1d and enter the decoder (paper fusion / AM context / LSTMCell concat).
+- **on**: travel-time features pass through a `Linear(1→H)` and enter the decoder (paper fusion / AM context / LSTMCell concat).
 - **off**: dynamic branch disabled.
 
 ```bash

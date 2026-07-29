@@ -2,15 +2,16 @@ import torch
 from torch import nn
 
 
-class ConvEncoder(nn.Module):
-    """1d convolution over the node axis for dynamic features."""
+class DynamicEncoder(nn.Module):
+    """Pointwise linear projection of per-node dynamic features."""
 
     def __init__(self, input_size: int, hidden_size: int):
         super().__init__()
-        self.conv = nn.Conv1d(input_size, hidden_size, kernel_size=1)
+        self.proj = nn.Linear(input_size, hidden_size)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        return self.conv(input)
+        # input: [B, N, C] → [B, H, N] for pointer / mean-pool consumers
+        return self.proj(input).permute(0, 2, 1)
 
 
 class PointerAttention(nn.Module):

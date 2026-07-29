@@ -77,10 +77,12 @@ class AttentionModelDecoder(StepDecoder):
         if self.use_dynamics:
             if dynamic_hidden is None:
                 raise RuntimeError("Dynamic context required when use_dynamics=True")
-            # dynamic_hidden is [B, H, N] from ConvEncoder; pool over nodes
+            # dynamic_hidden is [B, H, N] from DynamicEncoder; pool over nodes
             dyn_ctx = dynamic_hidden.mean(dim=2)
             parts.append(dyn_ctx)
-        query = state["fixed_context"] + self.step_context_proj(torch.cat(parts, dim=-1))
+        query = state["fixed_context"] + self.step_context_proj(
+            torch.cat(parts, dim=-1)
+        )
         node_mask = avail_actions == 0
         glimpse = self._multi_head_glimpse(
             query,

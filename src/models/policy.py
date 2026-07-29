@@ -11,7 +11,7 @@ from src.models.decoder.base import StepDecoder
 from src.models.decoder.lstm_pointer import LstmPointerDecoder
 from src.models.decoder.tspd_lstm import TSPDLstmDecoder
 from src.models.encoder.attention import AttentionEncoder
-from src.models.layers.pointer import ConvEncoder
+from src.models.layers.pointer import DynamicEncoder
 from src.models.types import EncoderOutput
 
 
@@ -23,7 +23,7 @@ class Policy(nn.Module):
         *,
         encoder: AttentionEncoder,
         decoder: StepDecoder,
-        dynamic_encoder: ConvEncoder | None,
+        dynamic_encoder: DynamicEncoder | None,
         mask_logits: bool = True,
     ) -> None:
         super().__init__()
@@ -51,10 +51,10 @@ class Policy(nn.Module):
         self._decoder_state = self.decoder.reset(self._encoder_output, batch_size)
 
     def encode_dynamic(self, dynamic: torch.Tensor) -> torch.Tensor | None:
-        """``dynamic`` is ``[B, N, 1]`` travel-time features."""
+        """``dynamic`` is ``[B, N, 1]`` travel-time features → ``[B, H, N]``."""
         if self.dynamic_encoder is None:
             return None
-        return self.dynamic_encoder(dynamic.permute(0, 2, 1))
+        return self.dynamic_encoder(dynamic)
 
     def forward(
         self,
@@ -170,7 +170,7 @@ def build_policy(
         n_heads=n_heads,
         tanh_clip=tanh_clip,
     )
-    dynamic_encoder = ConvEncoder(1, hidden_dim) if use_dynamics else None
+    dynamic_encoder = DynamicEncoder(1, hidden_dim) if use_dynamics else None
     return Policy(
         encoder=encoder,
         decoder=step_decoder,
