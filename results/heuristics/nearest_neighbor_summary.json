@@ -1,0 +1,127 @@
+{
+  "heuristic": "nearest_neighbor",
+  "runs": [
+    {
+      "decode_len": 33,
+      "description": "Smallest-distance constructive TSP-D heuristic: at each step pick the feasible truck node with min Euclidean distance, then the feasible drone node with min travel time (distance / v_d).",
+      "elapsed_sec": 0.0033877090318128467,
+      "heuristic": "nearest_neighbor",
+      "makespan_max": 382.8787926707231,
+      "makespan_mean": 302.32078433479364,
+      "makespan_min": 173.37909160630318,
+      "makespan_std": 39.73356218146699,
+      "makespans_file": "makespans.txt",
+      "n_instances": 100,
+      "n_nodes": 11,
+      "unfinished": 0,
+      "v_d": 2.0,
+      "v_t": 1.0
+    },
+    {
+      "decode_len": 45,
+      "description": "Smallest-distance constructive TSP-D heuristic: at each step pick the feasible truck node with min Euclidean distance, then the feasible drone node with min travel time (distance / v_d).",
+      "elapsed_sec": 0.003392833983525634,
+      "heuristic": "nearest_neighbor",
+      "makespan_max": 493.8263308513698,
+      "makespan_mean": 353.1023944301733,
+      "makespan_min": 262.5547419849699,
+      "makespan_std": 39.755820194338476,
+      "makespans_file": "makespans.txt",
+      "n_instances": 100,
+      "n_nodes": 15,
+      "unfinished": 0,
+      "v_d": 2.0,
+      "v_t": 1.0
+    },
+    {
+      "decode_len": 60,
+      "description": "Smallest-distance constructive TSP-D heuristic: at each step pick the feasible truck node with min Euclidean distance, then the feasible drone node with min travel time (distance / v_d).",
+      "elapsed_sec": 0.005094415973871946,
+      "heuristic": "nearest_neighbor",
+      "makespan_max": 524.6932165045445,
+      "makespan_mean": 406.10166936165473,
+      "makespan_min": 313.077327690574,
+      "makespan_std": 47.539222146127514,
+      "makespans_file": "makespans.txt",
+      "n_instances": 100,
+      "n_nodes": 20,
+      "unfinished": 0,
+      "v_d": 2.0,
+      "v_t": 1.0
+    },
+    {
+      "decode_len": 150,
+      "description": "Smallest-distance constructive TSP-D heuristic: at each step pick the feasible truck node with min Euclidean distance, then the feasible drone node with min travel time (distance / v_d).",
+      "elapsed_sec": 0.014956958941183984,
+      "heuristic": "nearest_neighbor",
+      "makespan_max": 818.5296644275651,
+      "makespan_mean": 649.4833581508732,
+      "makespan_min": 530.2887348737203,
+      "makespan_std": 58.92563976496554,
+      "makespans_file": "makespans.txt",
+      "n_instances": 100,
+      "n_nodes": 50,
+      "unfinished": 0,
+      "v_d": 2.0,
+      "v_t": 1.0
+    },
+    {
+      "decode_len": 300,
+      "description": "Smallest-distance constructive TSP-D heuristic: at each step pick the feasible truck node with min Euclidean distance, then the feasible drone node with min travel time (distance / v_d).",
+      "elapsed_sec": 0.03616816701833159,
+      "heuristic": "nearest_neighbor",
+      "makespan_max": 1059.5254447311404,
+      "makespan_mean": 913.2092259928946,
+      "makespan_min": 762.3537710954422,
+      "makespan_std": 60.554947497839116,
+      "makespans_file": "makespans.txt",
+      "n_instances": 100,
+      "n_nodes": 100,
+      "unfinished": 0,
+      "v_d": 2.0,
+      "v_t": 1.0
+    }
+  ],
+  "table": [
+    {
+      "elapsed_sec": 0.0033877090318128467,
+      "makespan_mean": 302.32078433479364,
+      "makespan_std": 39.73356218146699,
+      "n_instances": 100,
+      "n_nodes": 11,
+      "unfinished": 0
+    },
+    {
+      "elapsed_sec": 0.003392833983525634,
+      "makespan_mean": 353.1023944301733,
+      "makespan_std": 39.755820194338476,
+      "n_instances": 100,
+      "n_nodes": 15,
+      "unfinished": 0
+    },
+    {
+      "elapsed_sec": 0.005094415973871946,
+      "makespan_mean": 406.10166936165473,
+      "makespan_std": 47.539222146127514,
+      "n_instances": 100,
+      "n_nodes": 20,
+      "unfinished": 0
+    },
+    {
+      "elapsed_sec": 0.014956958941183984,
+      "makespan_mean": 649.4833581508732,
+      "makespan_std": 58.92563976496554,
+      "n_instances": 100,
+      "n_nodes": 50,
+      "unfinished": 0
+    },
+    {
+      "elapsed_sec": 0.03616816701833159,
+      "makespan_mean": 913.2092259928946,
+      "makespan_std": 60.554947497839116,
+      "n_instances": 100,
+      "n_nodes": 100,
+      "unfinished": 0
+    }
+  ]
+}

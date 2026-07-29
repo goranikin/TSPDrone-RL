@@ -1,0 +1,16 @@
+{
+  "decode_len": 33,
+  "description": "Smallest-distance constructive TSP-D heuristic: at each step pick the feasible truck node with min Euclidean distance, then the feasible drone node with min travel time (distance / v_d).",
+  "elapsed_sec": 0.0033877090318128467,
+  "heuristic": "nearest_neighbor",
+  "makespan_max": 382.8787926707231,
+  "makespan_mean": 302.32078433479364,
+  "makespan_min": 173.37909160630318,
+  "makespan_std": 39.73356218146699,
+  "makespans_file": "makespans.txt",
+  "n_instances": 100,
+  "n_nodes": 11,
+  "unfinished": 0,
+  "v_d": 2.0,
+  "v_t": 1.0
+}
