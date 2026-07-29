@@ -4,6 +4,13 @@ results/*.txt
 trained_models/*.txt
 trained_models/*.pkl
 
+# Julia (local depot / build artifacts under the package)
+julia/**/Manifest.toml
+julia/**/.CondaPkg/
+*.jl.*.cov
+*.jl.cov
+*.jl.mem
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

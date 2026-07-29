@@ -12,12 +12,12 @@ Commands for the TSPDrone-RL training pipelines on the remote box.
 
 Effective batch under DDP = `trainer.batch_size × num_processes`.
 
-Recommended per-rank batch (n=11, leave headroom for sample + greedy baseline):
+Recommended per-rank batch (n=11, bf16; measured ~5 GiB at 2048 on a 4090):
 
 | Mode | `trainer.batch_size` | Effective batch |
 | --- | ---: | ---: |
-| 1 GPU | 1024 | 1024 |
-| 2 GPU DDP | 512 | 1024 |
+| 1 GPU | 8192 | 8192 |
+| 2 GPU DDP | 8192 | 16384 |
 
 If OOM, halve. If VRAM is idle and step/sec still rises, try doubling.
 
@@ -56,7 +56,7 @@ CUDA_VISIBLE_DEVICES=0 uv run python -m src.experiments.run \
   decoder=attention_model dynamics=on \
   physics.n_nodes=11 scale=small \
   trainer.epochs=50 \
-  trainer.batch_size=1024 \
+  trainer.batch_size=8192 \
   trainer.mixed_precision=bf16 \
   data.load_checkpoint=false \
   wandb.name=smoke_am_on
@@ -74,10 +74,10 @@ CUDA_VISIBLE_DEVICES=0 uv run python -m src.experiments.run \
   action=train \
   decoder=attention_model dynamics=on \
   physics.n_nodes=11 \
-  trainer.batch_size=1024 \
+  trainer.batch_size=8192 \
   trainer.mixed_precision=bf16 \
   data.load_checkpoint=false \
-  wandb.name=am_on_n11_bs1024 \
+  wandb.name=am_on_n11_bs8192 \
   wandb.group=n11_full_matrix
 ```
 
@@ -107,10 +107,10 @@ CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch \
   action=train \
   decoder=attention_model dynamics=on \
   physics.n_nodes=11 \
-  trainer.batch_size=512 \
+  trainer.batch_size=8192 \
   trainer.mixed_precision=bf16 \
   data.load_checkpoint=false \
-  wandb.name=am_on_n11_ddp2_bs512 \
+  wandb.name=am_on_n11_ddp2_bs8192 \
   wandb.group=n11_full_matrix
 ```
 
@@ -127,7 +127,7 @@ CUDA_VISIBLE_DEVICES=0 uv run python -m src.experiments.run \
   scale=full action=train \
   decoder=attention_model dynamics=on \
   physics.n_nodes=11 \
-  trainer.batch_size=1024 trainer.mixed_precision=bf16 \
+  trainer.batch_size=8192 trainer.mixed_precision=bf16 \
   data.load_checkpoint=false \
   wandb.name=am_on_n11 wandb.group=n11_full_matrix
 ```
@@ -139,7 +139,7 @@ CUDA_VISIBLE_DEVICES=1 uv run python -m src.experiments.run \
   scale=full action=train \
   decoder=tspd_lstm dynamics=on \
   physics.n_nodes=11 \
-  trainer.batch_size=1024 trainer.mixed_precision=bf16 \
+  trainer.batch_size=8192 trainer.mixed_precision=bf16 \
   data.load_checkpoint=false \
   wandb.name=tspd_lstm_on_n11 wandb.group=n11_full_matrix
 ```
@@ -185,7 +185,7 @@ Rough starting batches:
 
 | `physics.n_nodes` | 1 GPU batch | 2 GPU DDP per-rank |
 | ---: | ---: | ---: |
-| 11 | 1024 | 512 |
+| 11 | 8192 | 8192 |
 | 20 | 512 | 256 |
 | 50 | 256 | 128 |
 | 100 | 128 | 64 |
@@ -272,3 +272,28 @@ nvtop
 ```
 
 Confirm each parallel job is on a different GPU and memory is rising under load.
+
+---
+
+## Table 2 OR baselines (TSP-ep-all / DPS)
+
+These rows are **not** the Python RL stack. In-repo Julia package:
+
+`julia/TSPDroneBaselines/` (adapted from TSPDrone.jl; does not import that package).
+
+Only external solver dep: **Concorde.jl**. Setup for macOS and Ubuntu 24.04: see `julia/TSPDroneBaselines/README.md`.
+
+```bash
+# one-time
+julia --project=julia/TSPDroneBaselines -e 'using Pkg; Pkg.instantiate(); Pkg.build("Concorde")'
+
+# smoke (5 instances, N=20)
+julia --project=julia/TSPDroneBaselines \
+  julia/TSPDroneBaselines/scripts/reproduce_table2.jl \
+  --n 20 --methods TSP-ep-all,DPS/10 --limit 5
+
+# full Table 2 OR rows (TSP-ep-all @ N=100 is very slow)
+julia --project=julia/TSPDroneBaselines \
+  julia/TSPDroneBaselines/scripts/reproduce_table2.jl \
+  --n 20,50,100 --methods TSP-ep-all,DPS/10,DPS/25
+```
