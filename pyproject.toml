@@ -23,3 +23,15 @@ dev = [
     "ruff>=0.16.0",
     "ty>=0.0.64",
 ]
+
+# Torch 2.13 dropped cu128; PyPI defaults to cu130 (needs a newer driver).
+# Pin Linux to cu126 so CUDA 12.8 drivers (nvidia-smi CUDA Version 12.8) work.
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu126", marker = "sys_platform == 'linux'" },
+]

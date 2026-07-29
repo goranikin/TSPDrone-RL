@@ -67,6 +67,12 @@ CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch --num_processes 2 --mixed_prec
 
 Trainer knobs: `trainer.mixed_precision` (`no` / `fp16` / `bf16`, default `bf16`) and `trainer.gradient_accumulation_steps`.
 
+**Parameter budget (default on):** total trainable params are matched to `tspd_lstm_on` at `model.hidden_dim=256` / `model.d_ff=512` (~2.30M) by searching per-architecture `hidden_dim` / `d_ff`. Disable with `parameter_budget.enabled=false`. Print the table:
+
+```bash
+uv run python -m src.experiments.parameter_budget
+```
+
 Baseline: frozen greedy rollout of the same policy (`dynamics` and `decoder` match the train run).
 
 **Checkpoints:** the encoder port invalidates legacy `trained_models/` weights. Auto-load is only attempted for `tspd_lstm_on` and is skipped if keys do not match. Multi-GPU saves the unwrapped `state_dict` on the main process only.

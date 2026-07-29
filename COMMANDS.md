@@ -242,6 +242,14 @@ uv run python -m src.analyze analyze --expected-scales full
 | `data.load_checkpoint=false` | Fresh weights (recommended for new encoder/decoder matrix) |
 | `wandb.enabled=false` | Local-only run |
 | `physics.n_nodes=11` | Problem size |
+| `parameter_budget.enabled=true` | Match total params to `tspd_lstm_on` (default) |
+| `parameter_budget.enabled=false` | Use raw `model.hidden_dim` / `model.d_ff` for every arch |
+
+Print the matched width table:
+
+```bash
+uv run python -m src.experiments.parameter_budget
+```
 
 Outputs default under `~/local_db/tspdrone-rl/outputs/training/`.
 
