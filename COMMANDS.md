@@ -393,45 +393,56 @@ Causal Transformer decoder with the **same** additive pointer / dynamics hook as
 
 Parameter budget stays on (matches total params to `tspd_lstm_on`). Suggested batches from the table above; halve on OOM.
 
-### Train (`scale=small`)
+### Train (`scale=small`, 2-GPU DDP)
 
-**n=11**
+Effective batch = `trainer.batch_size × 2`. The Transformer keeps a KV cache over the
+decode history, so it needs **smaller per-rank batches** than `tspd_lstm` (OOM at
+8192). Halve again on OOM.
+
+**n=11** (eff. batch 4096)
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run python -m src.experiments.run \
+CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch \
+  --num_processes 2 --mixed_precision bf16 \
+  -m src.experiments.run \
   scale=small action=train \
   decoder=tspd_transformer dynamics=on \
   physics.n_nodes=11 physics.alpha=2.0 \
-  trainer.batch_size=8192 trainer.mixed_precision=bf16 \
+  trainer.batch_size=2048 trainer.mixed_precision=bf16 \
   data.load_checkpoint=false \
   wandb.name=tspd_transformer_on_n11_a2.0 wandb.group=tspd_transformer_vs_lstm_small
 ```
 
-**n=20**
+**n=20** (eff. batch 256)
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run python -m src.experiments.run \
+CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch \
+  --num_processes 2 --mixed_precision bf16 \
+  -m src.experiments.run \
   scale=small action=train \
   decoder=tspd_transformer dynamics=on \
   physics.n_nodes=20 physics.alpha=2.0 \
-  trainer.batch_size=512 trainer.mixed_precision=bf16 \
+  trainer.batch_size=128 trainer.mixed_precision=bf16 \
   data.load_checkpoint=false \
   wandb.name=tspd_transformer_on_n20_a2.0 wandb.group=tspd_transformer_vs_lstm_small
 ```
 
-**n=50**
+**n=50** (eff. batch 128)
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run python -m src.experiments.run \
+CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch \
+  --num_processes 2 --mixed_precision bf16 \
+  -m src.experiments.run \
   scale=small action=train \
   decoder=tspd_transformer dynamics=on \
   physics.n_nodes=50 physics.alpha=2.0 \
-  trainer.batch_size=256 trainer.mixed_precision=bf16 \
+  trainer.batch_size=64 trainer.mixed_precision=bf16 \
   data.load_checkpoint=false \
   wandb.name=tspd_transformer_on_n50_a2.0 wandb.group=tspd_transformer_vs_lstm_small
 ```
 
-Optional matched LSTM controls (same α / scale / batch): swap `decoder=tspd_lstm` and `wandb.name=tspd_lstm_on_n{N}_a2.0`.
+Optional matched LSTM controls (same α / scale): swap `decoder=tspd_lstm` and
+`wandb.name=tspd_lstm_on_n{N}_a2.0` (LSTM can keep the larger dual-GPU batches).
 
 ### Greedy test
 

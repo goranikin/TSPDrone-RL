@@ -71,12 +71,12 @@ This is the decoder from the TSP-D RL paper: an LSTM consumes the previous node 
 
 Drop-in LSTM replacement for a controlled comparison: keep the paper pointer (and dynamics hook); replace only the recurrent block with a **causal Transformer** over the history of chosen-node embeddings.
 
-**State:** growing history tensor `[B, T, H]` (starts empty; each step appends `prev_embed`).
+**State:** per-layer KV cache + step index (starts empty).
 
 **Step:**
 
-1. Append `prev_embed` to history; add sinusoidal positions.
-2. Run `num_layers` causal self-attention + FFN blocks (mask = lower-triangular).
+1. Add sinusoidal position to `prev_embed`.
+2. For each layer: attend **only the new token** to the cached keys/values (append to cache). Equivalent to full causal self-attention for the last position, but `O(B·T)` per step.
 3. Query `q` = last-token hidden state.
 4. Same additive pointer as `tspd_lstm` (optional dynamics in energy).
 
