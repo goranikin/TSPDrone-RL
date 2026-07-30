@@ -14,6 +14,7 @@ from src.analyze.metadata import EXPECTED_DECODERS, EXPECTED_PROBLEMS, objective
 
 DECODER_LABELS = {
     "tspd_lstm": "TSP-D LSTM",
+    "tspd_transformer": "TSP-D Transformer",
     "attention_model": "Attention",
     "lstm_pointer": "LSTM Pointer",
 }

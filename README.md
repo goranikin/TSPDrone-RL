@@ -51,6 +51,7 @@ Decoder × dynamics ablations (architecture name = `{decoder}_{dynamics}`):
 | `decoder` | `dynamics` | Name |
 | --- | --- | --- |
 | `tspd_lstm` | `on` / `off` | paper LSTM pointer |
+| `tspd_transformer` | `on` / `off` | causal Transformer + same pointer |
 | `attention_model` | `on` / `off` | Kool Attention Model |
 | `lstm_pointer` | `on` / `off` | Vinyals LSTM pointer |
 

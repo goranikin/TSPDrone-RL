@@ -11,6 +11,7 @@ from src.models.decoder.attention_model import AttentionModelDecoder
 from src.models.decoder.base import StepDecoder
 from src.models.decoder.lstm_pointer import LstmPointerDecoder
 from src.models.decoder.tspd_lstm import TSPDLstmDecoder
+from src.models.decoder.tspd_transformer import TSPDTransformerDecoder
 from src.models.encoder.attention import AttentionEncoder
 from src.models.layers.pointer import DynamicEncoder
 from src.models.types import EncoderOutput
@@ -134,6 +135,7 @@ def build_decoder(
     dropout: float,
     use_tanh: bool,
     n_heads: int,
+    d_ff: int,
     tanh_clip: float,
 ) -> StepDecoder:
     if decoder == "tspd_lstm":
@@ -141,6 +143,16 @@ def build_decoder(
             hidden_dim,
             use_dynamics=use_dynamics,
             num_layers=num_layers,
+            dropout=dropout,
+            use_tanh=use_tanh,
+        )
+    if decoder == "tspd_transformer":
+        return TSPDTransformerDecoder(
+            hidden_dim,
+            use_dynamics=use_dynamics,
+            num_layers=num_layers,
+            num_heads=n_heads,
+            d_ff=d_ff,
             dropout=dropout,
             use_tanh=use_tanh,
         )
@@ -187,6 +199,7 @@ def build_policy(
         dropout=dropout,
         use_tanh=use_tanh,
         n_heads=n_heads,
+        d_ff=d_ff,
         tanh_clip=tanh_clip,
     )
     dynamic_encoder = DynamicEncoder(1, hidden_dim) if use_dynamics else None

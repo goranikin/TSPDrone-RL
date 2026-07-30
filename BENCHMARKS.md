@@ -100,3 +100,25 @@ Results are written under `results/heuristics/` (`nearest_neighbor_summary.md`, 
 | lstm_pointer_on | 288.97 | 376.37 | 1026.50 | — |
 | lstm_pointer_off | 284.98 | 367.41 | 1049.83 | — |
 | Nearest neighbor | 302.32 | 406.10 | 649.48 | 913.21 |
+
+---
+
+## Alpha sweep (`tspd_lstm_on`, `scale=small`)
+
+Greedy test (`action=test`) for **tspd_lstm** + **dynamics=on** across drone/truck speed ratios `alpha ∈ {1.0, 1.2, 1.5}` (`v_t = 1.0`, `v_d = alpha`). Checkpoints under `outputs/training/small/tspd_lstm_on_n{N}_a{alpha}/`.
+
+These settings differ from the Table 2 / sections above (`alpha = 2.0` / `v_d = 2.0`); do not compare gaps to TSP-ep-all from those tables.
+
+| α (`v_d`) | N = 11 | N = 20 |
+| ---: | ---: | ---: |
+| 1.0 | 315.38 | 387.77 |
+| 1.2 | 295.50 | 379.40 |
+| 1.5 | 283.78 | 361.91 |
+
+For reference, the same architecture at **α = 2.0** (main RL table): N = 11 → **273.85**, N = 20 → **351.07**.
+
+**Takeaways:**
+
+- Faster drone (higher α) lowers greedy makespan at both sizes.
+- N = 11: α 1.0 → 1.5 cuts ~10% (315.38 → 283.78); α 2.0 is another ~3.5% lower (273.85).
+- N = 20: α 1.0 → 1.5 cuts ~6.7% (387.77 → 361.91); α 2.0 is another ~3% lower (351.07).

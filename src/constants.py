@@ -1,7 +1,9 @@
 from typing import Literal
 
 type ProblemName = Literal["tspd"]
-type DecoderKind = Literal["tspd_lstm", "attention_model", "lstm_pointer"]
+type DecoderKind = Literal[
+    "tspd_lstm", "tspd_transformer", "attention_model", "lstm_pointer"
+]
 type DynamicsMode = Literal["on", "off"]
 type TrainingMode = Literal["rl"]
 type RunAction = Literal["train", "test", "sampling"]
@@ -9,6 +11,7 @@ type RunAction = Literal["train", "test", "sampling"]
 PROBLEM_NAMES: tuple[ProblemName, ...] = ("tspd",)
 DECODER_KINDS: tuple[DecoderKind, ...] = (
     "tspd_lstm",
+    "tspd_transformer",
     "attention_model",
     "lstm_pointer",
 )

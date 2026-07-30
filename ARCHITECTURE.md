@@ -18,6 +18,7 @@ TSPDrone-RL/
 │   │   ├── encoder/attention.py      # Kool AttentionEncoder (from compare-architectures)
 │   │   ├── decoder/
 │   │   │   ├── tspd_lstm.py          # paper LSTM + additive pointer
+│   │   │   ├── tspd_transformer.py   # causal Transformer + same pointer
 │   │   │   ├── attention_model.py    # Kool AM glimpse + pointer
 │   │   │   └── lstm_pointer.py       # Vinyals LSTMCell + additive pointer
 │   │   ├── layers/                   # MHA, BN, pointer layers
@@ -33,7 +34,7 @@ TSPDrone-RL/
 
 ## Decoder × dynamics matrix
 
-Detailed write-up of the three decoders and the dynamics hook: [DECODERS.md](DECODERS.md).
+Detailed write-up of the decoders and the dynamics hook: [DECODERS.md](DECODERS.md).
 
 Shared static encoder: ported Kool `AttentionEncoder` (`input_dim=2`).
 
@@ -41,6 +42,8 @@ Shared static encoder: ported Kool `AttentionEncoder` (`input_dim=2`).
 | --- | --- | --- |
 | `tspd_lstm_on` | `tspd_lstm` | `on` |
 | `tspd_lstm_off` | `tspd_lstm` | `off` |
+| `tspd_transformer_on` | `tspd_transformer` | `on` |
+| `tspd_transformer_off` | `tspd_transformer` | `off` |
 | `attention_model_on` | `attention_model` | `on` |
 | `attention_model_off` | `attention_model` | `off` |
 | `lstm_pointer_on` | `lstm_pointer` | `on` |
@@ -48,7 +51,6 @@ Shared static encoder: ported Kool `AttentionEncoder` (`input_dim=2`).
 
 - **on**: travel-time features pass through a `Linear(1→H)` and enter the decoder (paper fusion / AM context / LSTMCell concat).
 - **off**: dynamic branch disabled.
-
 ```bash
 # Single process (Accelerate still owns device / bf16)
 uv run python -m src.experiments.run \

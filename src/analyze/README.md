@@ -29,7 +29,7 @@ Expected defaults:
 | --- | --- |
 | problem | `tspd` |
 | encoder | `attention` |
-| decoder | `tspd_lstm`, `attention_model`, `lstm_pointer` |
+| decoder | `tspd_lstm`, `tspd_transformer`, `attention_model`, `lstm_pointer` |
 | dynamics | `on`, `off` |
 | mode | `rl` |
 | seed | `5` |
@@ -51,7 +51,7 @@ Makespan is minimized; `quality_value = -objective`. Feasibility defaults to 1.0
 
 ## Hypothesis
 
-- Recurrent: `tspd_lstm`, `lstm_pointer`
+- Recurrent: `tspd_lstm`, `tspd_transformer`, `lstm_pointer`
 - Nonrecurrent: `attention_model`
 
 Comparisons are matched within the same `dynamics` setting.

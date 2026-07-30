@@ -27,6 +27,7 @@ PROBLEMS: dict[str, ProblemMetadata] = {
 
 DECODERS: dict[str, DecoderMetadata] = {
     "tspd_lstm": DecoderMetadata("hybrid", True, "recurrent"),
+    "tspd_transformer": DecoderMetadata("hybrid", True, "recurrent"),
     "attention_model": DecoderMetadata("attention", True, "nonrecurrent"),
     "lstm_pointer": DecoderMetadata("recurrent", True, "recurrent"),
 }

@@ -87,6 +87,8 @@ Swap `decoder` / `dynamics` as needed:
 | --- | --- | --- |
 | `tspd_lstm` | `on` | `tspd_lstm_on_n11` |
 | `tspd_lstm` | `off` | `tspd_lstm_off_n11` |
+| `tspd_transformer` | `on` | `tspd_transformer_on_n11` |
+| `tspd_transformer` | `off` | `tspd_transformer_off_n11` |
 | `attention_model` | `on` | `am_on_n11` |
 | `attention_model` | `off` | `am_off_n11` |
 | `lstm_pointer` | `on` | `lstm_ptr_on_n11` |
@@ -238,6 +240,125 @@ uv run python -m src.analyze analyze --expected-scales full
 
 ---
 
+## Alpha sweep (stability re-run)
+
+Re-run `tspd_lstm` + `dynamics=on` across `alpha ∈ {1.0, 1.2, 1.5}` with **logit clipping** and **fp32** (no AMP) after NaN crashes under bf16.
+
+Keep both flags in sync: `--mixed_precision no` (accelerate) and `trainer.mixed_precision=no` (Hydra).
+
+**n=11, batch=4096**
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch \
+  --num_processes 2 --mixed_precision no \
+  -m src.experiments.run \
+  scale=small action=train \
+  decoder=tspd_lstm dynamics=on \
+  physics.n_nodes=11 physics.alpha=1.0 \
+  model.use_tanh=true \
+  trainer.batch_size=4096 trainer.mixed_precision=no \
+  data.load_checkpoint=false \
+  wandb.name=tspd_lstm_on_n11_a1.0_tanh_fp32 wandb.group=tspd_lstm_on_alpha_small
+
+CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch \
+  --num_processes 2 --mixed_precision no \
+  -m src.experiments.run \
+  scale=small action=train \
+  decoder=tspd_lstm dynamics=on \
+  physics.n_nodes=11 physics.alpha=1.2 \
+  model.use_tanh=true \
+  trainer.batch_size=4096 trainer.mixed_precision=no \
+  data.load_checkpoint=false \
+  wandb.name=tspd_lstm_on_n11_a1.2_tanh_fp32 wandb.group=tspd_lstm_on_alpha_small
+
+CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch \
+  --num_processes 2 --mixed_precision no \
+  -m src.experiments.run \
+  scale=small action=train \
+  decoder=tspd_lstm dynamics=on \
+  physics.n_nodes=11 physics.alpha=1.5 \
+  model.use_tanh=true \
+  trainer.batch_size=4096 trainer.mixed_precision=no \
+  data.load_checkpoint=false \
+  wandb.name=tspd_lstm_on_n11_a1.5_tanh_fp32 wandb.group=tspd_lstm_on_alpha_small
+```
+
+**n=20, batch=512**
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch \
+  --num_processes 2 --mixed_precision no \
+  -m src.experiments.run \
+  scale=small action=train \
+  decoder=tspd_lstm dynamics=on \
+  physics.n_nodes=20 physics.alpha=1.0 \
+  model.use_tanh=true \
+  trainer.batch_size=512 trainer.mixed_precision=no \
+  data.load_checkpoint=false \
+  wandb.name=tspd_lstm_on_n20_a1.0_tanh_fp32 wandb.group=tspd_lstm_on_alpha_small
+
+CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch \
+  --num_processes 2 --mixed_precision no \
+  -m src.experiments.run \
+  scale=small action=train \
+  decoder=tspd_lstm dynamics=on \
+  physics.n_nodes=20 physics.alpha=1.2 \
+  model.use_tanh=true \
+  trainer.batch_size=512 trainer.mixed_precision=no \
+  data.load_checkpoint=false \
+  wandb.name=tspd_lstm_on_n20_a1.2_tanh_fp32 wandb.group=tspd_lstm_on_alpha_small
+
+CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch \
+  --num_processes 2 --mixed_precision no \
+  -m src.experiments.run \
+  scale=small action=train \
+  decoder=tspd_lstm dynamics=on \
+  physics.n_nodes=20 physics.alpha=1.5 \
+  model.use_tanh=true \
+  trainer.batch_size=512 trainer.mixed_precision=no \
+  data.load_checkpoint=false \
+  wandb.name=tspd_lstm_on_n20_a1.5_tanh_fp32 wandb.group=tspd_lstm_on_alpha_small
+```
+
+**n=50, batch=256** (includes the previously crashing `a1.2` setting)
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch \
+  --num_processes 2 --mixed_precision no \
+  -m src.experiments.run \
+  scale=small action=train \
+  decoder=tspd_lstm dynamics=on \
+  physics.n_nodes=50 physics.alpha=1.0 \
+  model.use_tanh=true \
+  trainer.batch_size=256 trainer.mixed_precision=no \
+  data.load_checkpoint=false \
+  wandb.name=tspd_lstm_on_n50_a1.0_tanh_fp32 wandb.group=tspd_lstm_on_alpha_small
+
+CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch \
+  --num_processes 2 --mixed_precision no \
+  -m src.experiments.run \
+  scale=small action=train \
+  decoder=tspd_lstm dynamics=on \
+  physics.n_nodes=50 physics.alpha=1.2 \
+  model.use_tanh=true \
+  trainer.batch_size=256 trainer.mixed_precision=no \
+  data.load_checkpoint=false \
+  wandb.name=tspd_lstm_on_n50_a1.2_tanh_fp32 wandb.group=tspd_lstm_on_alpha_small
+
+CUDA_VISIBLE_DEVICES=0,1 uv run accelerate launch \
+  --num_processes 2 --mixed_precision no \
+  -m src.experiments.run \
+  scale=small action=train \
+  decoder=tspd_lstm dynamics=on \
+  physics.n_nodes=50 physics.alpha=1.5 \
+  model.use_tanh=true \
+  trainer.batch_size=256 trainer.mixed_precision=no \
+  data.load_checkpoint=false \
+  wandb.name=tspd_lstm_on_n50_a1.5_tanh_fp32 wandb.group=tspd_lstm_on_alpha_small
+```
+
+---
+
 ## Useful overrides
 
 | Override | Meaning |
@@ -245,7 +366,8 @@ uv run python -m src.analyze analyze --expected-scales full
 | `scale=small` / `scale=full` | 1k vs 1e6 updates (epochs) |
 | `trainer.epochs=100000` | Cap updates without changing scale file |
 | `trainer.batch_size=...` | Per-process batch |
-| `trainer.mixed_precision=bf16` | Default; use `no` to debug AMP issues |
+| `trainer.mixed_precision=bf16` | Default; use `no` to debug AMP / NaN issues |
+| `model.use_tanh=true` | Clip pointer logits with \(C\tanh\) (helps NaN stability) |
 | `trainer.test_interval=200` | Val frequency (episodes) |
 | `data.load_checkpoint=false` | Fresh weights (recommended for new encoder/decoder matrix) |
 | `wandb.enabled=false` | Local-only run |
@@ -262,6 +384,70 @@ uv run python -m src.experiments.parameter_budget
 ```
 
 Outputs default under `~/local_db/tspdrone-rl/outputs/training/`.
+
+---
+
+## `tspd_transformer` vs `tspd_lstm` (α = 2.0)
+
+Causal Transformer decoder with the **same** additive pointer / dynamics hook as `tspd_lstm`. Default `physics.alpha=2.0` (`v_d = 2.0`). Use `dynamics=on` for the paper-matched setting.
+
+Parameter budget stays on (matches total params to `tspd_lstm_on`). Suggested batches from the table above; halve on OOM.
+
+### Train (`scale=small`)
+
+**n=11**
+
+```bash
+CUDA_VISIBLE_DEVICES=0 uv run python -m src.experiments.run \
+  scale=small action=train \
+  decoder=tspd_transformer dynamics=on \
+  physics.n_nodes=11 physics.alpha=2.0 \
+  trainer.batch_size=8192 trainer.mixed_precision=bf16 \
+  data.load_checkpoint=false \
+  wandb.name=tspd_transformer_on_n11_a2.0 wandb.group=tspd_transformer_vs_lstm_small
+```
+
+**n=20**
+
+```bash
+CUDA_VISIBLE_DEVICES=0 uv run python -m src.experiments.run \
+  scale=small action=train \
+  decoder=tspd_transformer dynamics=on \
+  physics.n_nodes=20 physics.alpha=2.0 \
+  trainer.batch_size=512 trainer.mixed_precision=bf16 \
+  data.load_checkpoint=false \
+  wandb.name=tspd_transformer_on_n20_a2.0 wandb.group=tspd_transformer_vs_lstm_small
+```
+
+**n=50**
+
+```bash
+CUDA_VISIBLE_DEVICES=0 uv run python -m src.experiments.run \
+  scale=small action=train \
+  decoder=tspd_transformer dynamics=on \
+  physics.n_nodes=50 physics.alpha=2.0 \
+  trainer.batch_size=256 trainer.mixed_precision=bf16 \
+  data.load_checkpoint=false \
+  wandb.name=tspd_transformer_on_n50_a2.0 wandb.group=tspd_transformer_vs_lstm_small
+```
+
+Optional matched LSTM controls (same α / scale / batch): swap `decoder=tspd_lstm` and `wandb.name=tspd_lstm_on_n{N}_a2.0`.
+
+### Greedy test
+
+```bash
+CUDA_VISIBLE_DEVICES=0 uv run python -m src.experiments.run \
+  action=test scale=small \
+  decoder=tspd_transformer dynamics=on \
+  physics.n_nodes=11 physics.alpha=2.0 \
+  data.load_checkpoint=true \
+  wandb.enabled=false \
+  wandb.name=tspd_transformer_on_n11_a2.0
+```
+
+Repeat with `physics.n_nodes=20` / `50` and matching `wandb.name`.
+
+For longer training, use `scale=full` with the same overrides.
 
 ---
 

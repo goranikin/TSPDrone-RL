@@ -38,6 +38,7 @@ Travel-time features from the env are encoded with a pointwise `DynamicEncoder` 
 | Decoder | `dynamics=on` | `dynamics=off` |
 | --- | --- | --- |
 | `tspd_lstm` | Added into additive pointer energy via `project_d` | Pointer uses static + query only |
+| `tspd_transformer` | Same as `tspd_lstm` (pointer energy) | Same as `tspd_lstm` |
 | `attention_model` | Mean-pooled over nodes and concatenated into step context | Step context = previous embedding only |
 | `lstm_pointer` | Mean-pooled and concatenated into `LSTMCell` input | Cell input = previous embedding only |
 
@@ -63,7 +64,27 @@ This is the decoder from the TSP-D RL paper: an LSTM consumes the previous node 
 
 ---
 
-## 2. `attention_model` — Kool Attention Model (AM)
+## 2. `tspd_transformer` — causal Transformer + additive pointer
+
+**File:** `src/models/decoder/tspd_transformer.py`  
+**Pointer:** same `PointerAttention` as `tspd_lstm`
+
+Drop-in LSTM replacement for a controlled comparison: keep the paper pointer (and dynamics hook); replace only the recurrent block with a **causal Transformer** over the history of chosen-node embeddings.
+
+**State:** growing history tensor `[B, T, H]` (starts empty; each step appends `prev_embed`).
+
+**Step:**
+
+1. Append `prev_embed` to history; add sinusoidal positions.
+2. Run `num_layers` causal self-attention + FFN blocks (mask = lower-triangular).
+3. Query `q` = last-token hidden state.
+4. Same additive pointer as `tspd_lstm` (optional dynamics in energy).
+
+**Why it exists:** test whether a Transformer sequential block beats the paper LSTM under matched encoder, env, pointer, dynamics, and parameter budget.
+
+---
+
+## 3. `attention_model` — Kool Attention Model (AM)
 
 **File:** `src/models/decoder/attention_model.py`
 
@@ -80,13 +101,13 @@ Port of the [Kool et al.](https://arxiv.org/abs/1803.08475) decoder to one TSP-D
 2. **Multi-head glimpse:** masked attention of the query over glimpse keys/values (infeasible nodes set to −∞).
 3. **Pointer:** scaled dot-product of `final_query_proj(glimpse)` with `logit_keys`, then \(C\tanh(\cdot)\).
 
-There is **no LSTM**. Recurrence is only through `prev_embed` (and optional dynamic context). The glimpse is a single attention layer, not a full transformer block.
+There is **no LSTM**. Recurrence is only through `prev_embed` (and optional dynamic context). The glimpse is a single attention layer, not a full transformer block over action history (unlike `tspd_transformer`).
 
 **Why it exists:** compare a strong non-recurrent TSP decoder against the paper LSTM under the same encoder and TSP-D env.
 
 ---
 
-## 3. `lstm_pointer` — Vinyals LSTM pointer
+## 4. `lstm_pointer` — Vinyals LSTM pointer
 
 **File:** `src/models/decoder/lstm_pointer.py`  
 **Pointer:** `src/models/layers/additive_pointer_attention.py`
@@ -108,19 +129,19 @@ Unlike `tspd_lstm`, dynamics enter the **cell input**, not the pointer energy; t
 
 ## Comparison (quick)
 
-| | `tspd_lstm` | `attention_model` | `lstm_pointer` |
-| --- | --- | --- | --- |
-| Recurrence | `nn.LSTM` | none (context only) | `LSTMCell` |
-| Attention | additive pointer (+ optional dyn in energy) | MHA glimpse + scaled DP pointer | additive pointer (static) |
-| Init state | zeros | projected keys + graph context | graph embedding as `(h, c)` |
-| Dynamics hook | inside pointer | in step-context concat | in cell input concat |
-| Typical refs | Bogyrbayeva et al. (TSP-D) | Kool AM | Vinyals Ptr-Net |
+| | `tspd_lstm` | `tspd_transformer` | `attention_model` | `lstm_pointer` |
+| --- | --- | --- | --- | --- |
+| Recurrence | `nn.LSTM` | causal Transformer over history | none (context only) | `LSTMCell` |
+| Attention | additive pointer (+ optional dyn in energy) | same additive pointer | MHA glimpse + scaled DP pointer | additive pointer (static) |
+| Init state | zeros | empty history | projected keys + graph context | graph embedding as `(h, c)` |
+| Dynamics hook | inside pointer | inside pointer (same) | in step-context concat | in cell input concat |
+| Typical refs | Bogyrbayeva et al. (TSP-D) | this repo | Kool AM | Vinyals Ptr-Net |
 
-All six combinations (`decoder` × `dynamics`) are selected via Hydra:
+All combinations (`decoder` × `dynamics`) are selected via Hydra:
 
 ```bash
 uv run python -m src.experiments.run \
-  decoder=attention_model dynamics=on \
+  decoder=tspd_transformer dynamics=on \
   ...
 ```
 
