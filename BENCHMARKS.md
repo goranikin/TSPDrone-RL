@@ -3,7 +3,8 @@
 Reference costs for the Traveling Salesman Problem with Drone (TSP-D), aligned with the paper’s Table 2 setting and this repo’s test files (`data/DroneTruck-size-100-len-*.txt`).
 
 **Instance settings:** truck speed `v_t = 1.0`, drone speed `v_d = 2.0` (cost factor `0.5`), unlimited drone range, **100** instances per size.  
-**Gap %:** relative to the best mean cost among OR methods for that `N` (same convention as the paper / `reproduce_table2.jl`).
+**Gap % (OR):** relative to the best mean cost among OR methods for that `N`.  
+**Gap % (RL / NN):** relative to **TSP-ep-all** mean for that `N`.
 
 ---
 
@@ -43,6 +44,34 @@ Notes:
 
 ---
 
+## RL greedy eval (`scale=small`, trained matrix)
+
+Greedy test (`action=test`) on the same 100-instance files. Training: decoder × dynamics × `N ∈ {11,20,50}`, `parameter_budget.enabled=true`, checkpoints under `~/local_db/tspdrone-rl/outputs/training/small/<wandb.name>/n<N>/`.
+
+### Valid (checkpoint loaded)
+
+Only **`tspd_lstm_on`** loaded weights in this eval pass. Other architectures printed `Skipping checkpoint load ... (only tspd_lstm_on may attempt load)` and ran **untrained** — those numbers are omitted.
+
+| Method | N = 11 | Gap | N = 20 | Gap | N = 50 | Gap |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| tspd_lstm_on | **273.85** | 19.1% | **351.07** | 24.7% | **574.73** | 44.7% |
+
+### Invalid this pass (checkpoint skipped — do not use)
+
+Same untrained/random init collapse (repeated identical makespans across architectures):
+
+| Method | N = 11 | N = 20 | N = 50 |
+| --- | ---: | ---: | ---: |
+| tspd_lstm_off | 384.39 † | 646.33 † | 1545.49 † |
+| attention_model_on | 384.39 † | 646.33 † | 1545.49 † |
+| attention_model_off | 384.39 † | 646.33 † | 1545.49 † |
+| lstm_pointer_on | 416.28 † | 674.24 † | 1666.35 † |
+| lstm_pointer_off | 394.10 † | 664.76 † | 1604.27 † |
+
+† Checkpoint not loaded. Re-run eval after pulling the load fix in `src/experiments/run.py` (`_maybe_load_weights` loads any architecture). Confirm logs show `Successfully loaded policy weights from ...` for every run.
+
+---
+
 ## Nearest-neighbor heuristic (Python)
 
 Weak constructive baseline in [`src/heuristics`](src/heuristics): at each step the truck, then the drone, picks the **nearest feasible** node under the same `Env` availability masks as RL training.
@@ -61,8 +90,6 @@ Results are written under `results/heuristics/` (`nearest_neighbor_summary.md`, 
 | 50 | 649.48 ± 58.93 | 63.5% | 0.02 s |
 | 100 | 913.21 ± 60.55 | 70.5% | 0.04 s |
 
-Use this as a **lower-performance floor**: any trained RL policy should beat nearest-neighbor; OR methods (especially TSP-ep-all) set the high bar.
-
 ---
 
 ## Quick comparison (mean cost)
@@ -72,4 +99,7 @@ Use this as a **lower-performance floor**: any trained RL policy should beat nea
 | TSP-ep-all | **229.87** | **281.62** | **397.21** | **535.50** |
 | DPS/10 | 229.95 | 292.23 | 420.51 | 570.74 |
 | DPS/25 | — | — | 404.78 | 548.23 |
+| tspd_lstm_on (greedy, small) | 273.85 | 351.07 | 574.73 | — |
 | Nearest neighbor | 302.32 | 406.10 | 649.48 | 913.21 |
+
+`tspd_lstm_on` beats nearest-neighbor at every reported `N`, but still trails TSP-ep-all (gaps 19–45%). Other RL architectures pending a clean re-eval with checkpoint load fixed.

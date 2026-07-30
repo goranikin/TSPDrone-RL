@@ -266,13 +266,6 @@ def _maybe_load_weights(
     load_dir: Path,
     device: torch.device,
 ) -> None:
-    # Encoder port + decoder matrix invalidate legacy paper checkpoints.
-    if cfg.architecture != "tspd_lstm_on":
-        print(
-            f"Skipping checkpoint load for architecture={cfg.architecture} "
-            "(only tspd_lstm_on may attempt load)"
-        )
-        return
     actor_path = load_dir / "best_model_actor_truck_params.pkl"
     if not actor_path.exists():
         print(f"No actor checkpoint found under {load_dir}")
@@ -282,7 +275,8 @@ def _maybe_load_weights(
         missing, unexpected = policy.load_state_dict(state, strict=False)
         if missing or unexpected:
             print(
-                f"Checkpoint under {load_dir} is incompatible with the new encoder "
+                f"Checkpoint under {load_dir} is incompatible with "
+                f"architecture={cfg.architecture} "
                 f"(missing={len(missing)} unexpected={len(unexpected)}); "
                 "starting from scratch"
             )
