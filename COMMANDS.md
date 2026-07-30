@@ -250,6 +250,8 @@ uv run python -m src.analyze analyze --expected-scales full
 | `data.load_checkpoint=false` | Fresh weights (recommended for new encoder/decoder matrix) |
 | `wandb.enabled=false` | Local-only run |
 | `physics.n_nodes=11` | Problem size |
+| `physics.alpha=2.0` | Drone/truck speed ratio (`v_d = alpha * v_t`) |
+| `physics.v_t=1.0` | Truck speed (default 1) |
 | `parameter_budget.enabled=true` | Match total params to `tspd_lstm_on` (default) |
 | `parameter_budget.enabled=false` | Use raw `model.hidden_dim` / `model.d_ff` for every arch |
 

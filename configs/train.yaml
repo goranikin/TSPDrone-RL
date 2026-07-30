@@ -15,7 +15,7 @@ physics:
   n_nodes: 11
   R: 150
   v_t: 1.0
-  v_d: 2.0
+  alpha: 2.0  # drone/truck speed ratio; v_d = alpha * v_t
   max_w: 2.5
 
 data:

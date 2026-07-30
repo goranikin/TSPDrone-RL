@@ -1,7 +1,14 @@
 from typing import Annotated, Any, Literal, Self
 
 from omegaconf import DictConfig, OmegaConf
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from src.constants import (
     DecoderKind,
@@ -34,11 +41,18 @@ class ScaleConfig(StrictModel):
 
 
 class ProblemConfig(StrictModel):
+    """TSP-D physics. ``alpha`` is the drone/truck speed ratio (``v_d = alpha * v_t``)."""
+
     n_nodes: PositiveInt = 11
     R: PositiveInt = 150
     v_t: PositiveFloat = 1.0
-    v_d: PositiveFloat = 2.0
+    alpha: PositiveFloat = 2.0
     max_w: PositiveFloat = 2.5
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def v_d(self) -> float:
+        return self.alpha * self.v_t
 
 
 class DataConfig(StrictModel):

@@ -102,7 +102,7 @@ def solve_nearest_neighbor(
         if ter.all():
             break
 
-        truck_costs = env.dist_mat[np.arange(batch_size), env.truck_loc]
+        truck_costs = env.truck_mat[np.arange(batch_size), env.truck_loc]
         idx_truck = _nearest_feasible(truck_costs, avail_actions[:, :, 0])
 
         # Same conflict rule as the RL trainer: if the drone is free to start a

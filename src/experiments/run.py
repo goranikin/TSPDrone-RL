@@ -183,6 +183,7 @@ def run_from_config(raw_cfg: DictConfig) -> dict[str, Any]:
         f"run=problem={cfg.problem} architecture={cfg.architecture} "
         f"decoder={cfg.decoder} dynamics={cfg.dynamics} "
         f"action={cfg.action} n_nodes={cfg.physics.n_nodes} "
+        f"alpha={cfg.physics.alpha} v_t={cfg.physics.v_t} v_d={cfg.physics.v_d} "
         f"hidden_dim={matched.hidden_dim} d_ff={matched.d_ff} "
         f"params={matched.matched_params} baseline=greedy_rollout "
         f"device={device} processes={accelerator.num_processes} "

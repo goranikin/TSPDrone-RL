@@ -51,6 +51,20 @@ def _sample_instances(batch_size: int, n_nodes: int) -> np.ndarray:
     return np.concatenate([input_pnt, network], 2)
 
 
+def _resolve_speeds(physics: object) -> tuple[float, float, float]:
+    """Return ``(v_t, alpha, v_d)`` from a physics config or SimpleNamespace."""
+    v_t = float(getattr(physics, "v_t", 1.0))
+    alpha = getattr(physics, "alpha", None)
+    v_d = getattr(physics, "v_d", None)
+    if alpha is not None:
+        alpha_f = float(alpha)
+        return v_t, alpha_f, alpha_f * v_t
+    if v_d is not None:
+        v_d_f = float(v_d)
+        return v_t, v_d_f / v_t, v_d_f
+    return v_t, 2.0, 2.0 * v_t
+
+
 class DataGenerator:
     def __init__(self, cfg: RunConfig):
         self.batch_size = cfg.trainer.batch_size
@@ -74,9 +88,9 @@ class Env:
     def __init__(self, cfg: RunConfig, data: np.ndarray):
         self.input_data = data
         self.n_nodes = cfg.physics.n_nodes
-        self.v_d = cfg.physics.v_d
+        self.v_t, self.alpha, self.v_d = _resolve_speeds(cfg.physics)
         self.batch_size = cfg.trainer.batch_size
-        print("Using Not revisiting nodes")
+        print(f"Using Not revisiting nodes (alpha={self.alpha}, v_t={self.v_t}, v_d={self.v_d})")
 
     def reset(self) -> tuple[np.ndarray, np.ndarray]:
         self.batch_size = self.input_data[:, :, :2].shape[0]
@@ -90,6 +104,8 @@ class Env:
                 ) ** 0.5
                 self.dist_mat[:, j, i] = self.dist_mat[:, i, j]
 
+        # Travel times: truck = dist / v_t, drone = dist / (alpha * v_t)
+        self.truck_mat = self.dist_mat / self.v_t
         self.drone_mat = self.dist_mat / self.v_d
         avail_actions = np.ones([self.batch_size, self.n_nodes, 2], dtype=np.float32)
         avail_actions[:, self.n_nodes - 1, :] = np.zeros([self.batch_size, 2])
@@ -102,7 +118,7 @@ class Env:
         self.drone_loc = np.ones([self.batch_size], dtype=np.int32) * (self.n_nodes - 1)
 
         dynamic = np.zeros([self.batch_size, self.n_nodes, 2], dtype=np.float32)
-        dynamic[:, :, 0] = self.dist_mat[:, self.n_nodes - 1]
+        dynamic[:, :, 0] = self.truck_mat[:, self.n_nodes - 1]
         dynamic[:, :, 1] = self.drone_mat[:, self.n_nodes - 1]
         return dynamic, avail_actions
 
@@ -116,7 +132,7 @@ class Env:
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         old_sortie = copy.copy(self.sortie)
 
-        t_truck = self.dist_mat[
+        t_truck = self.truck_mat[
             np.arange(self.batch_size, dtype=np.int64), self.truck_loc, idx_truck
         ]
         t_drone = self.drone_mat[
@@ -304,7 +320,7 @@ class Env:
         )
 
         dynamic = np.zeros([self.batch_size, self.n_nodes, 2], dtype=np.float32)
-        dynamic[:, :, 0] = self.dist_mat[np.arange(self.batch_size), self.truck_loc]
+        dynamic[:, :, 0] = self.truck_mat[np.arange(self.batch_size), self.truck_loc]
         dynamic[:, :, 1] = self.drone_mat[np.arange(self.batch_size), self.drone_loc]
 
         terminated = np.logical_and(

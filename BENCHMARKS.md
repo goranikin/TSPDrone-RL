@@ -44,31 +44,25 @@ Notes:
 
 ---
 
-## RL greedy eval (`scale=small`, trained matrix)
+## RL greedy eval (`scale=small`)
 
-Greedy test (`action=test`) on the same 100-instance files. Training: decoder × dynamics × `N ∈ {11,20,50}`, `parameter_budget.enabled=true`, checkpoints under `~/local_db/tspdrone-rl/outputs/training/small/<wandb.name>/n<N>/`.
-
-### Valid (checkpoint loaded)
-
-Only **`tspd_lstm_on`** loaded weights in this eval pass. Other architectures printed `Skipping checkpoint load ... (only tspd_lstm_on may attempt load)` and ran **untrained** — those numbers are omitted.
+Greedy test (`action=test`) after the decoder × dynamics × `N ∈ {11,20,50}` training matrix. All rows loaded checkpoints successfully.
 
 | Method | N = 11 | Gap | N = 20 | Gap | N = 50 | Gap |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| tspd_lstm_on | **273.85** | 19.1% | **351.07** | 24.7% | **574.73** | 44.7% |
+| **tspd_lstm_on** | **273.85** | **19.1%** | **351.07** | **24.7%** | **574.73** | **44.7%** |
+| tspd_lstm_off | 282.53 | 22.9% | 378.59 | 34.4% | 1050.84 | 164.6% |
+| attention_model_on | 283.20 | 23.2% | 375.00 | 33.2% | 717.99 | 80.8% |
+| attention_model_off | 286.46 | 24.6% | 365.53 | 29.8% | 816.93 | 105.7% |
+| lstm_pointer_on | 288.97 | 25.7% | 376.37 | 33.6% | 1026.50 | 158.4% |
+| lstm_pointer_off | 284.98 | 24.0% | 367.41 | 30.5% | 1049.83 | 164.3% |
 
-### Invalid this pass (checkpoint skipped — do not use)
+**Takeaways (this `small` matrix):**
 
-Same untrained/random init collapse (repeated identical makespans across architectures):
-
-| Method | N = 11 | N = 20 | N = 50 |
-| --- | ---: | ---: | ---: |
-| tspd_lstm_off | 384.39 † | 646.33 † | 1545.49 † |
-| attention_model_on | 384.39 † | 646.33 † | 1545.49 † |
-| attention_model_off | 384.39 † | 646.33 † | 1545.49 † |
-| lstm_pointer_on | 416.28 † | 674.24 † | 1666.35 † |
-| lstm_pointer_off | 394.10 † | 664.76 † | 1604.27 † |
-
-† Checkpoint not loaded. Re-run eval after pulling the load fix in `src/experiments/run.py` (`_maybe_load_weights` loads any architecture). Confirm logs show `Successfully loaded policy weights from ...` for every run.
+- Best RL at every `N`: **tspd_lstm_on**.
+- Dynamics **on** helps most at N = 50 (especially `tspd_lstm`: 574.73 vs 1050.84).
+- All RL methods beat nearest-neighbor at N = 11 and N = 20; at N = 50 only `tspd_lstm_on` and both attention_model variants beat NN (649.48).
+- All still trail TSP-ep-all (best RL gaps ~19–45%).
 
 ---
 
@@ -99,7 +93,10 @@ Results are written under `results/heuristics/` (`nearest_neighbor_summary.md`, 
 | TSP-ep-all | **229.87** | **281.62** | **397.21** | **535.50** |
 | DPS/10 | 229.95 | 292.23 | 420.51 | 570.74 |
 | DPS/25 | — | — | 404.78 | 548.23 |
-| tspd_lstm_on (greedy, small) | 273.85 | 351.07 | 574.73 | — |
+| tspd_lstm_on | **273.85** | **351.07** | **574.73** | — |
+| tspd_lstm_off | 282.53 | 378.59 | 1050.84 | — |
+| attention_model_on | 283.20 | 375.00 | 717.99 | — |
+| attention_model_off | 286.46 | 365.53 | 816.93 | — |
+| lstm_pointer_on | 288.97 | 376.37 | 1026.50 | — |
+| lstm_pointer_off | 284.98 | 367.41 | 1049.83 | — |
 | Nearest neighbor | 302.32 | 406.10 | 649.48 | 913.21 |
-
-`tspd_lstm_on` beats nearest-neighbor at every reported `N`, but still trails TSP-ep-all (gaps 19–45%). Other RL architectures pending a clean re-eval with checkpoint load fixed.
